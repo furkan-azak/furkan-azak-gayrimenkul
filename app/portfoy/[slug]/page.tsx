@@ -4,50 +4,42 @@ import { getListingBySlug } from "@/lib/listings";
 import ListingGallery from "@/components/ListingGallery";
 import ListingMapSection from "@/components/ListingMapSection";
 
-// ✅ Satılık / Kiralık label
 function typeLabel(t: "sale" | "rent") {
   return t === "sale" ? "Satılık" : "Kiralık";
 }
 
-// ✅ Firestore’dan "Satılık/Kiralık" veya "sale/rent" gelse de tek tipe çevir
 function normalizeTypeKey(v: unknown): "sale" | "rent" {
   const s = String(v ?? "").trim().toLowerCase();
   if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
-  if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
   return "sale";
 }
 
 export default async function ListingDetailPage({
   params,
 }: {
-  params: Promise<{ slug: string }>; // ✅ Next 15 uyumu
+  params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
 
-  const listing: any = await getListingBySlug(slug);
+  const listing = await getListingBySlug(slug);
   if (!listing) return notFound();
-
-  const typeKey = normalizeTypeKey(listing.listingType);
 
   const locationText = [listing.city, listing.district, listing.neighborhood]
     .filter(Boolean)
     .join(" · ");
 
-  // ✅ resimler (yeni + eski fallback)
-  const images: string[] = (listing.images ?? listing.imageUrls ?? []).filter(Boolean);
+  const images: string[] = (listing.images ?? (listing as any).imageUrls ?? []).filter(Boolean);
+  const coverUrl: string | null = (listing as any).coverUrl ?? (images[0] ?? null);
 
-  // ✅ cover: coverUrl varsa onu bas (yoksa images[0])
-  const coverUrl: string | null = listing.coverUrl ?? (images[0] ?? null);
+  const videos: string[] = (listing.videos ?? (listing as any).videoUrls ?? []).filter(Boolean);
 
-  // ✅ videolar (yeni + eski fallback)
-  const videos: string[] = (listing.videos ?? listing.videoUrls ?? []).filter(Boolean);
-
-  // ✅ konum (Firestore: location {lat,lng})
-  const rawLoc = listing.location;
+  const rawLoc = (listing as any).location;
   const mapLocation =
     rawLoc && typeof rawLoc.lat === "number" && typeof rawLoc.lng === "number"
       ? { lat: rawLoc.lat, lng: rawLoc.lng }
       : null;
+
+  const typeKey = normalizeTypeKey((listing as any).listingType);
 
   const year = new Date().getFullYear();
 
@@ -57,9 +49,7 @@ export default async function ListingDetailPage({
       <header className="sticky top-0 z-20 border-b border-neutral-200/70 bg-neutral-50/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="tracking-tight">
-            <div className="text-sm uppercase tracking-[0.22em] text-neutral-600">
-              Furkan Azak
-            </div>
+            <div className="text-sm uppercase tracking-[0.22em] text-neutral-600">Furkan Azak</div>
             <div className="text-lg font-medium">Gayrimenkul</div>
           </Link>
 
@@ -112,19 +102,17 @@ export default async function ListingDetailPage({
             <p className="mt-3 text-sm text-neutral-700">{locationText}</p>
 
             <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700">
+                {typeLabel(typeKey)}
+              </span>
+
               {listing.isSold && (
-                <span className="inline-flex rounded-full bg-red-600 px-4 py-2 text-xs font-medium text-white">
+                <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs text-red-700">
                   Satıldı
                 </span>
               )}
 
-              <span className="inline-flex rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-800">
-                {typeLabel(typeKey)}
-              </span>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-2">
-              {(listing.badges ?? []).map((b: string) => (
+              {(listing.badges ?? []).map((b) => (
                 <span
                   key={b}
                   className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700"
@@ -154,12 +142,8 @@ export default async function ListingDetailPage({
 
           <div className="md:col-span-5">
             <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-              <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-                Özet
-              </div>
-              <div className="mt-3 text-2xl font-semibold tracking-tight">
-                {listing.priceText}
-              </div>
+              <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">Özet</div>
+              <div className="mt-3 text-2xl font-semibold tracking-tight">{listing.priceText}</div>
 
               <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                 <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
@@ -172,36 +156,19 @@ export default async function ListingDetailPage({
                 </div>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm">
-                <div className="text-xs text-neutral-600">İlan Tipi</div>
-                <div className="mt-1 font-medium">{typeLabel(typeKey)}</div>
-              </div>
-
-              <div className="mt-6 text-xs text-neutral-500">
-                Fiyat ve uygunluk bilgisi için iletişim.
-              </div>
+              <div className="mt-6 text-xs text-neutral-500">Fiyat ve uygunluk bilgisi için iletişim.</div>
             </div>
           </div>
         </div>
 
-        {/* ✅ FULLSCREEN GALERİ */}
-        <ListingGallery
-          title={listing.title}
-          images={images}
-          coverUrl={coverUrl}
-          isSold={!!listing.isSold}
-        />
+        <ListingGallery title={listing.title} images={images} coverUrl={coverUrl} isSold={!!listing.isSold} />
 
-        {/* ✅ Video Bölümü (varsa) */}
         {videos.length > 0 && (
           <div className="mt-10">
             <h2 className="text-2xl font-semibold tracking-tight">Video</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              {videos.map((v: string) => (
-                <div
-                  key={v}
-                  className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm"
-                >
+              {videos.map((v) => (
+                <div key={v} className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
                   <video src={v} controls playsInline className="h-full w-full" />
                 </div>
               ))}
@@ -209,13 +176,10 @@ export default async function ListingDetailPage({
           </div>
         )}
 
-        {/* Details */}
         <div className="mt-14 grid gap-10 md:grid-cols-12">
           <div className="md:col-span-7">
             <h2 className="text-2xl font-semibold tracking-tight">Açıklama</h2>
-            <p className="mt-4 text-sm leading-relaxed text-neutral-700">
-              {listing.description}
-            </p>
+            <p className="mt-4 text-sm leading-relaxed text-neutral-700">{listing.description}</p>
 
             <div className="mt-10 rounded-3xl border border-neutral-200 bg-white p-8">
               <h3 className="text-lg font-medium tracking-tight">Notlar & Süreç</h3>
@@ -232,7 +196,7 @@ export default async function ListingDetailPage({
               <h2 className="text-lg font-medium tracking-tight">Temel Özellikler</h2>
 
               <div className="mt-6 grid gap-3">
-                {(listing.features ?? []).map((f: any) => (
+                {(listing.features ?? []).map((f) => (
                   <div
                     key={f.label}
                     className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm"
@@ -243,7 +207,6 @@ export default async function ListingDetailPage({
                 ))}
               </div>
 
-              {/* ✅ HARİTA / KONUM */}
               <div className="mt-8">
                 {mapLocation ? (
                   <ListingMapSection location={mapLocation} title={listing.title} />

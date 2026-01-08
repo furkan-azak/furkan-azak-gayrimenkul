@@ -35,14 +35,10 @@ function typeLabel(t: "sale" | "rent") {
   return t === "sale" ? "Satılık" : "Kiralık";
 }
 
-// ✅ Firestore’dan "Satılık/Kiralık" veya "sale/rent" gelse de tek tipe çevir
 function normalizeTypeKey(v: unknown): "sale" | "rent" {
   const s = String(v ?? "").trim().toLowerCase();
-
   if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
-  if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
-
-  return "sale"; // eski ilanlar default
+  return "sale";
 }
 
 export default async function PortfolioPage({
@@ -89,9 +85,7 @@ export default async function PortfolioPage({
       <header className="sticky top-0 z-20 border-b border-neutral-200/70 bg-neutral-50/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="tracking-tight">
-            <div className="text-sm uppercase tracking-[0.22em] text-neutral-600">
-              Furkan Azak
-            </div>
+            <div className="text-sm uppercase tracking-[0.22em] text-neutral-600">Furkan Azak</div>
             <div className="text-lg font-medium">Gayrimenkul</div>
           </Link>
 
@@ -124,9 +118,7 @@ export default async function PortfolioPage({
             <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
               Satılık · Kiralık · Arsa · Villa · Daire
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">
-              Portföyler
-            </h1>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">Portföyler</h1>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-700">
               Seçili ilanlar; net bilgi, sade sunum, hızlı iletişim.
             </p>
@@ -148,10 +140,10 @@ export default async function PortfolioPage({
           {t !== "Tümü" && <input type="hidden" name="t" value={t} />}
         </form>
 
-        {/* ✅ Satılık / Kiralık filtre */}
-        <div className="mt-6 flex flex-wrap items-center gap-2">
+        {/* ✅ Filtreler: tıklanabilirlik için z-10 */}
+        <div className="relative z-10 mt-6 flex flex-wrap items-center gap-2">
           {TYPES.map((tt) => {
-            const active = t === tt;
+            const active = (t === tt) || (tt === "Tümü" && t === "Tümü");
             const label = tt === "Tümü" ? "Hepsi" : typeLabel(tt);
 
             const href =
@@ -167,6 +159,7 @@ export default async function PortfolioPage({
               <Link
                 key={tt}
                 href={href}
+                prefetch={false}
                 className={cn(
                   "rounded-full border px-4 py-2 text-sm",
                   active
@@ -180,10 +173,9 @@ export default async function PortfolioPage({
           })}
         </div>
 
-        {/* Kategori filtre */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="relative z-10 mt-3 flex flex-wrap items-center gap-2">
           {CATS.map((c) => {
-            const active = cat === c;
+            const active = (cat === c) || (c === "Tümü" && cat === "Tümü");
 
             const href =
               c === "Tümü"
@@ -198,6 +190,7 @@ export default async function PortfolioPage({
               <Link
                 key={c}
                 href={href}
+                prefetch={false}
                 className={cn(
                   "rounded-full border px-4 py-2 text-sm",
                   active
@@ -269,9 +262,7 @@ export default async function PortfolioPage({
 
                   <div className="mt-5 flex items-center justify-between">
                     <span className="text-sm text-neutral-900">{x.priceText}</span>
-                    <span className="text-sm text-neutral-500 group-hover:text-neutral-900">
-                      Detay →
-                    </span>
+                    <span className="text-sm text-neutral-500 group-hover:text-neutral-900">Detay →</span>
                   </div>
                 </div>
               </Link>
