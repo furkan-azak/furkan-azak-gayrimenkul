@@ -19,18 +19,12 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
-import {
-  deleteObject,
-  getDownloadURL,
-  listAll,
-  ref,
-  uploadBytes,
-} from "firebase/storage";
+import { deleteObject, getDownloadURL, listAll, ref, uploadBytes } from "firebase/storage";
 
 const MapPicker = dynamic(() => import("@/components/MapPicker"), { ssr: false });
 
 type Category = "Villa" | "Daire" | "Arsa";
-type ListingType = "sale" | "rent"; // ✅ yeni
+type ListingType = "sale" | "rent";
 type LatLng = { lat: number; lng: number } | null;
 
 type ListingRow = {
@@ -38,7 +32,7 @@ type ListingRow = {
   title: string;
   slug: string;
   category: Category;
-  listingType: ListingType; // ✅ yeni
+  listingType: ListingType;
   city?: string;
   isSold?: boolean;
 };
@@ -75,7 +69,7 @@ async function fetchListings(): Promise<ListingRow[]> {
     const snap = await getDocs(qRef);
     return snap.docs.map((d) => {
       const data = d.data() as any;
-      const lt = (data.listingType as ListingType) ?? "sale"; // ✅ default
+      const lt = (data.listingType as ListingType) ?? "sale";
       return {
         id: d.id,
         title: String(data.title ?? ""),
@@ -90,7 +84,7 @@ async function fetchListings(): Promise<ListingRow[]> {
     const snap = await getDocs(query(col, limit(100)));
     return snap.docs.map((d) => {
       const data = d.data() as any;
-      const lt = (data.listingType as ListingType) ?? "sale"; // ✅ default
+      const lt = (data.listingType as ListingType) ?? "sale";
       return {
         id: d.id,
         title: String(data.title ?? ""),
@@ -131,12 +125,7 @@ function storagePathFromDownloadUrl(url: string): string | null {
 
 function readLocation(data: any): LatLng {
   const loc = data?.location;
-  if (
-    loc &&
-    typeof loc === "object" &&
-    typeof loc.lat === "number" &&
-    typeof loc.lng === "number"
-  ) {
+  if (loc && typeof loc === "object" && typeof loc.lat === "number" && typeof loc.lng === "number") {
     return { lat: loc.lat, lng: loc.lng };
   }
   return null;
@@ -159,7 +148,7 @@ export default function AdminPage() {
   const [slug, setSlug] = useState("");
   const [category, setCategory] = useState<Category>("Villa");
 
-  // ✅ SATILIK / KİRALIK
+  // Satılık / Kiralık
   const [listingType, setListingType] = useState<ListingType>("sale");
 
   const [city, setCity] = useState("İzmir");
@@ -169,11 +158,15 @@ export default function AdminPage() {
   const [areaM2, setAreaM2] = useState<string>("");
   const [rooms, setRooms] = useState("");
   const [badgesText, setBadgesText] = useState("");
+
+  // ✅ Sahibinden tarzı “İlan Bilgileri / Özellikler” metni
+  const [featuresText, setFeaturesText] = useState("");
+
   const [description, setDescription] = useState("");
 
   const [isSold, setIsSold] = useState(false);
 
-  // ✅ konum
+  // konum
   const [location, setLocation] = useState<LatLng>(null);
 
   // medya + cover
@@ -245,11 +238,7 @@ export default function AdminPage() {
       .filter(Boolean);
   }, [badgesText]);
 
-  async function uploadFiles(
-    listingId: string,
-    files: FileList | null,
-    kind: "images" | "videos"
-  ) {
+  async function uploadFiles(listingId: string, files: FileList | null, kind: "images" | "videos") {
     if (!files || files.length === 0) return [];
 
     const urls: string[] = [];
@@ -271,8 +260,6 @@ export default function AdminPage() {
     setTitle("");
     setSlug("");
     setCategory("Villa");
-
-    // ✅ default
     setListingType("sale");
 
     setCity("İzmir");
@@ -282,6 +269,7 @@ export default function AdminPage() {
     setAreaM2("");
     setRooms("");
     setBadgesText("");
+    setFeaturesText(""); // ✅
     setDescription("");
     setIsSold(false);
 
@@ -311,7 +299,6 @@ export default function AdminPage() {
       setSlug(String(data.slug ?? id));
       setCategory((data.category as Category) ?? "Daire");
 
-      // ✅ listingType çek
       setListingType(((data.listingType as ListingType) ?? "sale") as ListingType);
 
       setCity(String(data.city ?? "İzmir"));
@@ -324,15 +311,29 @@ export default function AdminPage() {
       setDescription(String(data.description ?? ""));
       setIsSold(Boolean(data.isSold));
 
-      // ✅ konum çek
+      // ✅ features çek (array ya da eski string gelirse)
+      if (Array.isArray(data.features)) {
+        const lines = data.features
+          .map((f: any) => `${String(f?.label ?? "").trim()}: ${String(f?.value ?? "").trim()}`)
+          .filter((x: string) => x.includes(":"));
+        setFeaturesText(lines.join("\n"));
+      } else if (typeof data.features === "string") {
+        const lines = String(data.features)
+          .split("|")
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .map((p) => p.replace(/\s*:\s*/, ": "));
+        setFeaturesText(lines.join("\n"));
+      } else {
+        setFeaturesText("");
+      }
+
       setLocation(readLocation(data));
 
       const imgs =
-        (Array.isArray(data.imageUrls) ? data.imageUrls : null) ??
-        (Array.isArray(data.images) ? data.images : []);
+        (Array.isArray(data.imageUrls) ? data.imageUrls : null) ?? (Array.isArray(data.images) ? data.images : []);
       const vids =
-        (Array.isArray(data.videoUrls) ? data.videoUrls : null) ??
-        (Array.isArray(data.videos) ? data.videos : []);
+        (Array.isArray(data.videoUrls) ? data.videoUrls : null) ?? (Array.isArray(data.videos) ? data.videos : []);
 
       setExistingImageUrls(imgs);
       setExistingVideoUrls(vids);
@@ -471,12 +472,25 @@ export default function AdminPage() {
 
       const finalCover = coverUrl || imageUrls[0] || "";
 
+      // ✅ features parse
+      const parsedFeatures = featuresText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const idx = line.indexOf(":");
+          if (idx === -1) return null;
+          const label = line.slice(0, idx).trim();
+          const value = line.slice(idx + 1).trim();
+          if (!label || !value) return null;
+          return { label, value };
+        })
+        .filter(Boolean);
+
       const baseData: any = {
         slug: listingId,
         title: title.trim(),
         category,
-
-        // ✅ Satılık / Kiralık kaydet
         listingType,
 
         city: city.trim(),
@@ -485,13 +499,16 @@ export default function AdminPage() {
         priceText: priceText.trim() || "₺ —",
         areaM2: areaM2 ? Number(areaM2) : null,
         rooms: rooms.trim() || null,
+
         badges,
+        features: parsedFeatures, // ✅
         description: description.trim() || "",
+
         imageUrls,
         videoUrls,
         coverUrl: finalCover || null,
         isSold,
-        // ✅ konum kaydet
+
         location: location ? { lat: location.lat, lng: location.lng } : null,
         updatedAt: serverTimestamp(),
       };
@@ -519,9 +536,7 @@ export default function AdminPage() {
   if (checking) {
     return (
       <main className="min-h-screen bg-neutral-50 text-neutral-900">
-        <div className="mx-auto max-w-3xl px-6 py-16 text-sm text-neutral-600">
-          Kontrol ediliyor...
-        </div>
+        <div className="mx-auto max-w-3xl px-6 py-16 text-sm text-neutral-600">Kontrol ediliyor...</div>
       </main>
     );
   }
@@ -531,17 +546,12 @@ export default function AdminPage() {
       <header className="sticky top-0 z-20 border-b border-neutral-200/70 bg-neutral-50/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="tracking-tight">
-            <div className="text-sm uppercase tracking-[0.22em] text-neutral-600">
-              Furkan Azak
-            </div>
+            <div className="text-sm uppercase tracking-[0.22em] text-neutral-600">Furkan Azak</div>
             <div className="text-lg font-medium">Admin Panel</div>
           </Link>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/portfoy"
-              className="rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm hover:border-neutral-400"
-            >
+            <Link href="/portfoy" className="rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm hover:border-neutral-400">
               Siteyi Gör
             </Link>
 
@@ -561,8 +571,7 @@ export default function AdminPage() {
       <div className="mx-auto max-w-6xl px-6 py-10">
         {!adminOk && (
           <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-            Admin yetkisi yok. Firestore → <b>admins</b> collection içinde UID
-            dokümanı olmalı.
+            Admin yetkisi yok. Firestore → <b>admins</b> collection içinde UID dokümanı olmalı.
           </div>
         )}
 
@@ -572,12 +581,8 @@ export default function AdminPage() {
             <div className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">
-                    {editId ? "İlan Düzenle" : "İlan Ekle"}
-                  </h1>
-                  <p className="mt-2 text-sm text-neutral-600">
-                    Foto/video yükle → URL üretir → Firestore’a kaydeder.
-                  </p>
+                  <h1 className="text-2xl font-semibold tracking-tight">{editId ? "İlan Düzenle" : "İlan Ekle"}</h1>
+                  <p className="mt-2 text-sm text-neutral-600">Foto/video yükle → URL üretir → Firestore’a kaydeder.</p>
                 </div>
 
                 {editId && (
@@ -611,9 +616,7 @@ export default function AdminPage() {
                       onChange={(e) => setSlug(slugifyTR(e.target.value))}
                       disabled={!!editId}
                     />
-                    <div className="mt-1 text-xs text-neutral-500">
-                      URL: /portfoy/{slug || "ilan-slug"}
-                    </div>
+                    <div className="mt-1 text-xs text-neutral-500">URL: /portfoy/{slug || "ilan-slug"}</div>
                   </div>
 
                   <div>
@@ -630,7 +633,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* ✅ SATILIK / KİRALIK */}
+                {/* SATILIK / KİRALIK */}
                 <div>
                   <label className="text-sm text-neutral-700">İlan Tipi</label>
                   <select
@@ -641,9 +644,7 @@ export default function AdminPage() {
                     <option value="sale">Satılık</option>
                     <option value="rent">Kiralık</option>
                   </select>
-                  <div className="mt-1 text-xs text-neutral-500">
-                    Portföyde filtre buradan çalışacak.
-                  </div>
+                  <div className="mt-1 text-xs text-neutral-500">Portföyde filtre buradan çalışacak.</div>
                 </div>
 
                 {/* SATILDI */}
@@ -660,30 +661,23 @@ export default function AdminPage() {
                   </label>
                 </div>
 
-                {/* ✅ KONUM */}
+                {/* KONUM */}
                 <div className="rounded-3xl border border-neutral-200 bg-neutral-50 p-6">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-medium">Konum</div>
-                      <div className="mt-1 text-xs text-neutral-600">
-                        Haritaya tıkla → pin koy.
-                      </div>
+                      <div className="mt-1 text-xs text-neutral-600">Haritaya tıkla → pin koy.</div>
                     </div>
 
                     {location && (
-                      <div className="text-xs text-neutral-600 font-mono">
+                      <div className="text-xs font-mono text-neutral-600">
                         {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
                       </div>
                     )}
                   </div>
 
                   <div className="mt-4">
-                    <MapPicker
-                      value={location}
-                      onChange={setLocation}
-                      defaultCenter={{ lat: 38.4237, lng: 27.1428 }} // İzmir
-                      zoom={12}
-                    />
+                    <MapPicker value={location} onChange={setLocation} defaultCenter={{ lat: 38.4237, lng: 27.1428 }} zoom={12} />
                   </div>
                 </div>
 
@@ -693,13 +687,9 @@ export default function AdminPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-sm font-medium">Mevcut Fotoğraflar</div>
-                        <div className="mt-1 text-xs text-neutral-600">
-                          Kapak seçebilir, tek tek silebilirsin.
-                        </div>
+                        <div className="mt-1 text-xs text-neutral-600">Kapak seçebilir, tek tek silebilirsin.</div>
                       </div>
-                      <div className="text-xs text-neutral-600">
-                        {existingImageUrls.length} foto
-                      </div>
+                      <div className="text-xs text-neutral-600">{existingImageUrls.length} foto</div>
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -708,17 +698,16 @@ export default function AdminPage() {
                         const busy = busyMediaUrl === u;
 
                         return (
-                          <div
-                            key={u}
-                            className="overflow-hidden rounded-2xl border border-neutral-200 bg-white"
-                          >
+                          <div key={u} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
                             <div className="relative aspect-[4/3] bg-neutral-100">
                               <img src={u} alt="foto" className="h-full w-full object-cover" />
+
                               {isCover && (
                                 <div className="absolute left-2 top-2 rounded-full bg-black/70 px-3 py-1 text-xs text-white">
                                   Kapak
                                 </div>
                               )}
+
                               {isSold && (
                                 <div className="absolute right-2 top-2 rounded-full bg-red-600 px-3 py-1 text-xs text-white">
                                   Satıldı
@@ -758,7 +747,7 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* diğer alanlar */}
+                {/* Diğer alanlar */}
                 <div className="grid gap-4 md:grid-cols-3">
                   <div>
                     <label className="text-sm text-neutral-700">İl</label>
@@ -826,6 +815,47 @@ export default function AdminPage() {
                   />
                 </div>
 
+                {/* ✅ İlan Bilgileri / Özellikler */}
+                <div>
+                  <label className="text-sm text-neutral-700">İlan Bilgileri / Özellikler</label>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    Her satır: <b>Başlık: Değer</b> (ör: <i>Isıtma: Kombi</i>)
+                  </div>
+
+                  <textarea
+                    className="mt-2 w-full rounded-2xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-400"
+                    value={featuresText}
+                    onChange={(e) => setFeaturesText(e.target.value)}
+                    rows={10}
+                    placeholder={[
+                      "İlan No: 1290711739",
+                      "İlan Tarihi: 24.12.2025",
+                      "Emlak Tipi: Satılık Daire",
+                      "m² (Brüt): 130",
+                      "m² (Net): 120",
+                      "Oda Sayısı: 2+1",
+                      "Bina Yaşı: 5",
+                      "Bulunduğu Kat: 1",
+                      "Kat Sayısı: 4",
+                      "Isıtma: Kombi (Doğalgaz)",
+                      "Banyo Sayısı: 2",
+                      "Mutfak: Açık (Amerikan)",
+                      "Balkon: Var",
+                      "Asansör: Var",
+                      "Otopark: Kapalı Otopark",
+                      "Eşyalı: Evet",
+                      "Kullanım Durumu: Kiracılı",
+                      "Site İçerisinde: Hayır",
+                      "Aidat (TL): 200",
+                      "Krediye Uygun: Evet",
+                      "Tapu Durumu: Kat Mülkiyetli",
+                      "Kimden: Emlak Ofisinden",
+                      "Takas: Evet",
+                      "Cephe: Kuzey",
+                    ].join("\n")}
+                  />
+                </div>
+
                 <div>
                   <label className="text-sm text-neutral-700">Açıklama</label>
                   <textarea
@@ -861,13 +891,13 @@ export default function AdminPage() {
                 </div>
 
                 {err && (
-                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 whitespace-pre-line">
+                  <div className="whitespace-pre-line rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                     {err}
                   </div>
                 )}
 
                 {msg && (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 whitespace-pre-line">
+                  <div className="whitespace-pre-line rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
                     {msg}
                   </div>
                 )}
@@ -887,12 +917,8 @@ export default function AdminPage() {
             <div className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-                    Mevcut İlanlar
-                  </div>
-                  <div className="mt-1 text-sm text-neutral-700">
-                    {rows.length} ilan
-                  </div>
+                  <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">Mevcut İlanlar</div>
+                  <div className="mt-1 text-sm text-neutral-700">{rows.length} ilan</div>
                 </div>
 
                 <button
@@ -907,10 +933,7 @@ export default function AdminPage() {
 
               <div className="mt-6 space-y-3">
                 {rows.map((r) => (
-                  <div
-                    key={r.id}
-                    className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4"
-                  >
+                  <div key={r.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">
@@ -923,9 +946,7 @@ export default function AdminPage() {
                       </div>
 
                       {r.isSold && (
-                        <div className="rounded-full bg-red-600 px-3 py-1 text-xs text-white">
-                          Satıldı
-                        </div>
+                        <div className="rounded-full bg-red-600 px-3 py-1 text-xs text-white">Satıldı</div>
                       )}
                     </div>
 

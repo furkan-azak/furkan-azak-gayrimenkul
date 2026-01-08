@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getListingBySlug } from "@/lib/listings";
 import ListingGallery from "@/components/ListingGallery";
-import ListingMapSection from "@/components/ListingMapSection";
+import ListingTabs from "@/components/ListingTabs";
 
 function typeLabel(t: "sale" | "rent") {
   return t === "sale" ? "Satılık" : "Kiralık";
@@ -11,6 +11,7 @@ function typeLabel(t: "sale" | "rent") {
 function normalizeTypeKey(v: unknown): "sale" | "rent" {
   const s = String(v ?? "").trim().toLowerCase();
   if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
+  if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
   return "sale";
 }
 
@@ -161,14 +162,22 @@ export default async function ListingDetailPage({
           </div>
         </div>
 
-        <ListingGallery title={listing.title} images={images} coverUrl={coverUrl} isSold={!!listing.isSold} />
+        <ListingGallery
+          title={listing.title}
+          images={images}
+          coverUrl={coverUrl}
+          isSold={!!listing.isSold}
+        />
 
         {videos.length > 0 && (
           <div className="mt-10">
             <h2 className="text-2xl font-semibold tracking-tight">Video</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               {videos.map((v) => (
-                <div key={v} className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+                <div
+                  key={v}
+                  className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm"
+                >
                   <video src={v} controls playsInline className="h-full w-full" />
                 </div>
               ))}
@@ -176,45 +185,24 @@ export default async function ListingDetailPage({
           </div>
         )}
 
+        {/* ✅ Tabs + Contact card */}
         <div className="mt-14 grid gap-10 md:grid-cols-12">
           <div className="md:col-span-7">
-            <h2 className="text-2xl font-semibold tracking-tight">Açıklama</h2>
-            <p className="mt-4 text-sm leading-relaxed text-neutral-700">{listing.description}</p>
-
-            <div className="mt-10 rounded-3xl border border-neutral-200 bg-white p-8">
-              <h3 className="text-lg font-medium tracking-tight">Notlar & Süreç</h3>
-              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-neutral-700">
-                <li>Randevu ile yerinde gösterim.</li>
-                <li>Tapu/imar/ekspertiz gibi resmi detaylar paylaşılır.</li>
-                <li>Alıcı-satıcı tarafında net ve şeffaf iletişim.</li>
-              </ul>
-            </div>
+            <ListingTabs listing={listing as any} mapLocation={mapLocation} />
           </div>
 
           <aside className="md:col-span-5">
-            <div className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
-              <h2 className="text-lg font-medium tracking-tight">Temel Özellikler</h2>
+            <div className="sticky top-[92px] rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
+              <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">Hızlı İletişim</div>
 
-              <div className="mt-6 grid gap-3">
-                {(listing.features ?? []).map((f) => (
-                  <div
-                    key={f.label}
-                    className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm"
-                  >
-                    <span className="text-neutral-600">{f.label}</span>
-                    <span className="font-medium text-neutral-900">{f.value}</span>
-                  </div>
-                ))}
+              <div className="mt-3 text-lg font-medium tracking-tight">
+                {typeLabel(typeKey)} {listing.category}
               </div>
+              <div className="mt-2 text-sm text-neutral-600">{locationText || "—"}</div>
 
-              <div className="mt-8">
-                {mapLocation ? (
-                  <ListingMapSection location={mapLocation} title={listing.title} />
-                ) : (
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-100 p-6 text-sm text-neutral-600">
-                    Konum eklenmemiş.
-                  </div>
-                )}
+              <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
+                <div className="text-xs text-neutral-600">Fiyat</div>
+                <div className="mt-1 text-xl font-semibold">{listing.priceText || "₺ —"}</div>
               </div>
 
               <div className="mt-8 flex flex-col gap-3">
@@ -226,12 +214,22 @@ export default async function ListingDetailPage({
                 >
                   WhatsApp’tan bilgi al
                 </a>
+                <a
+                  href="tel:+905364518194"
+                  className="rounded-full border border-neutral-300 bg-white px-6 py-3 text-center text-sm text-neutral-900 hover:border-neutral-400"
+                >
+                  Telefonla ara
+                </a>
                 <Link
                   href="/portfoy"
                   className="rounded-full border border-neutral-300 bg-white px-6 py-3 text-center text-sm text-neutral-900 hover:border-neutral-400"
                 >
                   Tüm portföylere dön
                 </Link>
+              </div>
+
+              <div className="mt-6 text-xs text-neutral-500">
+                Detaylar ve güncel durum için iletişime geçebilirsin.
               </div>
             </div>
           </aside>

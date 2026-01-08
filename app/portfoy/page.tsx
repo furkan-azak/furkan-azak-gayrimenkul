@@ -35,24 +35,33 @@ function typeLabel(t: "sale" | "rent") {
   return t === "sale" ? "Satılık" : "Kiralık";
 }
 
+// Firestore’dan "Satılık/Kiralık" veya "sale/rent" gelse de normalize et
 function normalizeTypeKey(v: unknown): "sale" | "rent" {
   const s = String(v ?? "").trim().toLowerCase();
   if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
+  if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
   return "sale";
 }
 
-export default async function PortfolioPage({
-  searchParams,
-}: {
-  searchParams?: { cat?: string; q?: string; t?: string };
-}) {
-  const all = await getListings();
+// Next 15 uyumu: bazen Promise olabiliyor
+type SP =
+  | Record<string, string | string[] | undefined>
+  | Promise<Record<string, string | string[] | undefined>>;
 
-  const cat = (searchParams?.cat ?? "Tümü") as string;
-  const q = (searchParams?.q ?? "").trim().toLowerCase();
+export default async function PortfolioPage({ searchParams }: { searchParams?: SP }) {
+  const sp = await Promise.resolve(searchParams ?? {});
+  const getOne = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
-  const tRaw = (searchParams?.t ?? "Tümü") as string;
+  const catRaw = (getOne(sp.cat) ?? "Tümü").trim();
+  const cat = (CATS.includes(catRaw as any) ? catRaw : "Tümü") as Category | "Tümü";
+
+  const tRaw = (getOne(sp.t) ?? "Tümü").trim();
   const t = (TYPES.includes(tRaw as any) ? tRaw : "Tümü") as "Tümü" | "sale" | "rent";
+
+  const qInput = (getOne(sp.q) ?? "").trim();
+  const q = qInput.toLowerCase();
+
+  const all = await getListings();
 
   const filtered = all.filter((x: any) => {
     const typeKey = normalizeTypeKey(x.listingType);
@@ -132,7 +141,7 @@ export default async function PortfolioPage({
         <form className="mt-8" action="/portfoy">
           <input
             name="q"
-            defaultValue={searchParams?.q ?? ""}
+            defaultValue={qInput}
             placeholder="Ara: Çeşme, villa, arsa..."
             className="w-full rounded-2xl border border-neutral-300 bg-white px-5 py-4 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400"
           />
@@ -140,8 +149,8 @@ export default async function PortfolioPage({
           {t !== "Tümü" && <input type="hidden" name="t" value={t} />}
         </form>
 
-        {/* ✅ Filtreler: tıklanabilirlik için z-10 */}
-        <div className="relative z-10 mt-6 flex flex-wrap items-center gap-2">
+        {/* ✅ Filtreler: isolate + yüksek z-index + scroll={false} (yukarı atmayı keser) */}
+        <div className="relative isolate z-30 mt-6 flex flex-wrap items-center gap-2">
           {TYPES.map((tt) => {
             const active = (t === tt) || (tt === "Tümü" && t === "Tümü");
             const label = tt === "Tümü" ? "Hepsi" : typeLabel(tt);
@@ -149,16 +158,17 @@ export default async function PortfolioPage({
             const href =
               tt === "Tümü"
                 ? `/portfoy${cat !== "Tümü" ? `?cat=${encodeURIComponent(cat)}` : ""}${
-                    q ? `${cat !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(q)}` : ""
+                    qInput ? `${cat !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(qInput)}` : ""
                   }`
                 : `/portfoy?${cat !== "Tümü" ? `cat=${encodeURIComponent(cat)}&` : ""}t=${encodeURIComponent(tt)}${
-                    q ? `&q=${encodeURIComponent(q)}` : ""
+                    qInput ? `&q=${encodeURIComponent(qInput)}` : ""
                   }`;
 
             return (
               <Link
                 key={tt}
                 href={href}
+                scroll={false}
                 prefetch={false}
                 className={cn(
                   "rounded-full border px-4 py-2 text-sm",
@@ -173,23 +183,24 @@ export default async function PortfolioPage({
           })}
         </div>
 
-        <div className="relative z-10 mt-3 flex flex-wrap items-center gap-2">
+        <div className="relative isolate z-30 mt-3 flex flex-wrap items-center gap-2">
           {CATS.map((c) => {
             const active = (cat === c) || (c === "Tümü" && cat === "Tümü");
 
             const href =
               c === "Tümü"
                 ? `/portfoy${t !== "Tümü" ? `?t=${encodeURIComponent(t)}` : ""}${
-                    q ? `${t !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(q)}` : ""
+                    qInput ? `${t !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(qInput)}` : ""
                   }`
                 : `/portfoy?cat=${encodeURIComponent(c)}${
                     t !== "Tümü" ? `&t=${encodeURIComponent(t)}` : ""
-                  }${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+                  }${qInput ? `&q=${encodeURIComponent(qInput)}` : ""}`;
 
             return (
               <Link
                 key={c}
                 href={href}
+                scroll={false}
                 prefetch={false}
                 className={cn(
                   "rounded-full border px-4 py-2 text-sm",

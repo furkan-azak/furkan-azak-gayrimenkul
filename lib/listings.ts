@@ -22,7 +22,7 @@ export type Listing = {
   title: string;
   category: Category;
 
-  // ✅ yeni: satılık/kiralık
+  // ✅ satılık/kiralık
   listingType?: ListingType;
 
   city: string;
@@ -121,9 +121,12 @@ function normalizeCategory(v: unknown): Category {
   return "Daire";
 }
 
+// ✅ hem sale/rent hem Satılık/Kiralık kabul et
 function normalizeListingType(v: unknown): ListingType {
-  const s = asString(v, "sale");
-  return s === "rent" ? "rent" : "sale";
+  const s = String(v ?? "").trim().toLowerCase();
+  if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
+  if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
+  return "sale";
 }
 
 function parseLocation(v: unknown): LatLng | null {
@@ -154,7 +157,6 @@ function mapDocToListing(id: string, data: Record<string, unknown>): Listing {
     title: asString(data.title, "").trim(),
     category: normalizeCategory(data.category),
 
-    // ✅ burada ekliyoruz
     listingType: normalizeListingType((data as any).listingType),
 
     city: asString(data.city, "").trim(),
