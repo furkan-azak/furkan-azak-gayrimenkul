@@ -30,6 +30,7 @@ import {
 const MapPicker = dynamic(() => import("@/components/MapPicker"), { ssr: false });
 
 type Category = "Villa" | "Daire" | "Arsa";
+type ListingType = "sale" | "rent"; // ✅ yeni
 type LatLng = { lat: number; lng: number } | null;
 
 type ListingRow = {
@@ -37,9 +38,14 @@ type ListingRow = {
   title: string;
   slug: string;
   category: Category;
+  listingType: ListingType; // ✅ yeni
   city?: string;
   isSold?: boolean;
 };
+
+function listingTypeLabel(t: ListingType) {
+  return t === "sale" ? "Satılık" : "Kiralık";
+}
 
 function slugifyTR(input: string) {
   return input
@@ -69,11 +75,13 @@ async function fetchListings(): Promise<ListingRow[]> {
     const snap = await getDocs(qRef);
     return snap.docs.map((d) => {
       const data = d.data() as any;
+      const lt = (data.listingType as ListingType) ?? "sale"; // ✅ default
       return {
         id: d.id,
         title: String(data.title ?? ""),
         slug: String(data.slug ?? d.id),
         category: (data.category as Category) ?? "Daire",
+        listingType: lt,
         city: data.city ? String(data.city) : undefined,
         isSold: Boolean(data.isSold),
       };
@@ -82,11 +90,13 @@ async function fetchListings(): Promise<ListingRow[]> {
     const snap = await getDocs(query(col, limit(100)));
     return snap.docs.map((d) => {
       const data = d.data() as any;
+      const lt = (data.listingType as ListingType) ?? "sale"; // ✅ default
       return {
         id: d.id,
         title: String(data.title ?? ""),
         slug: String(data.slug ?? d.id),
         category: (data.category as Category) ?? "Daire",
+        listingType: lt,
         city: data.city ? String(data.city) : undefined,
         isSold: Boolean(data.isSold),
       };
@@ -148,6 +158,10 @@ export default function AdminPage() {
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [category, setCategory] = useState<Category>("Villa");
+
+  // ✅ SATILIK / KİRALIK
+  const [listingType, setListingType] = useState<ListingType>("sale");
+
   const [city, setCity] = useState("İzmir");
   const [district, setDistrict] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
@@ -257,6 +271,10 @@ export default function AdminPage() {
     setTitle("");
     setSlug("");
     setCategory("Villa");
+
+    // ✅ default
+    setListingType("sale");
+
     setCity("İzmir");
     setDistrict("");
     setNeighborhood("");
@@ -292,6 +310,10 @@ export default function AdminPage() {
       setTitle(String(data.title ?? ""));
       setSlug(String(data.slug ?? id));
       setCategory((data.category as Category) ?? "Daire");
+
+      // ✅ listingType çek
+      setListingType(((data.listingType as ListingType) ?? "sale") as ListingType);
+
       setCity(String(data.city ?? "İzmir"));
       setDistrict(String(data.district ?? ""));
       setNeighborhood(String(data.neighborhood ?? ""));
@@ -453,6 +475,10 @@ export default function AdminPage() {
         slug: listingId,
         title: title.trim(),
         category,
+
+        // ✅ Satılık / Kiralık kaydet
+        listingType,
+
         city: city.trim(),
         district: district.trim() || null,
         neighborhood: neighborhood.trim() || null,
@@ -601,6 +627,22 @@ export default function AdminPage() {
                       <option value="Daire">Daire</option>
                       <option value="Arsa">Arsa</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* ✅ SATILIK / KİRALIK */}
+                <div>
+                  <label className="text-sm text-neutral-700">İlan Tipi</label>
+                  <select
+                    className="mt-2 w-full rounded-2xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-400"
+                    value={listingType}
+                    onChange={(e) => setListingType(e.target.value as ListingType)}
+                  >
+                    <option value="sale">Satılık</option>
+                    <option value="rent">Kiralık</option>
+                  </select>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    Portföyde filtre buradan çalışacak.
                   </div>
                 </div>
 
@@ -872,7 +914,7 @@ export default function AdminPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-                          {r.category}
+                          {r.category} · {listingTypeLabel(r.listingType)}
                         </div>
                         <div className="mt-1 text-sm font-medium">{r.title}</div>
                         <div className="mt-1 text-xs text-neutral-600">

@@ -22,19 +22,30 @@ function Badge({ text }: { text: string }) {
 }
 
 const CATS: Array<Category | "Tümü"> = ["Tümü", "Villa", "Daire", "Arsa"];
+const TYPES: Array<"Tümü" | "sale" | "rent"> = ["Tümü", "sale", "rent"];
+
+function typeLabel(t: "sale" | "rent") {
+  return t === "sale" ? "Satılık" : "Kiralık";
+}
 
 export default async function PortfolioPage({
   searchParams,
 }: {
-  searchParams?: { cat?: string; q?: string };
+  searchParams?: { cat?: string; q?: string; t?: string };
 }) {
   const all = await getListings();
 
   const cat = (searchParams?.cat ?? "Tümü") as string;
   const q = (searchParams?.q ?? "").trim().toLowerCase();
+  const tRaw = (searchParams?.t ?? "Tümü") as string;
+  const t = (TYPES.includes(tRaw as any) ? tRaw : "Tümü") as "Tümü" | "sale" | "rent";
 
-  const filtered = all.filter((x) => {
+  const filtered = all.filter((x: any) => {
+    const typeValue = (x.listingType ?? "sale") as "sale" | "rent"; // ✅ eski ilanlar için default
+    const typeOk = t === "Tümü" ? true : typeValue === t;
+
     const catOk = cat === "Tümü" ? true : x.category === cat;
+
     const qOk =
       !q ||
       [
@@ -45,13 +56,14 @@ export default async function PortfolioPage({
         x.category,
         ...(x.badges ?? []),
         x.isSold ? "Satıldı" : "",
+        typeValue === "sale" ? "Satılık" : "Kiralık",
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(q);
 
-    return catOk && qOk;
+    return typeOk && catOk && qOk;
   });
 
   return (
@@ -92,7 +104,7 @@ export default async function PortfolioPage({
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-              Arsa · Villa · Daire
+              Satılık · Kiralık · Arsa · Villa · Daire
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">
               Portföyler
@@ -115,40 +127,86 @@ export default async function PortfolioPage({
             className="w-full rounded-2xl border border-neutral-300 bg-white px-5 py-4 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400"
           />
           {cat !== "Tümü" && <input type="hidden" name="cat" value={cat} />}
+          {t !== "Tümü" && <input type="hidden" name="t" value={t} />}
         </form>
 
+        {/* ✅ Satılık / Kiralık filtre */}
         <div className="mt-6 flex flex-wrap items-center gap-2">
-          {CATS.map((c) => (
-            <Link
-              key={c}
-              href={
-                c === "Tümü"
-                  ? q
-                    ? `/portfoy?q=${encodeURIComponent(q)}`
-                    : "/portfoy"
-                  : `/portfoy?cat=${encodeURIComponent(c)}${
-                      q ? `&q=${encodeURIComponent(q)}` : ""
-                    }`
-              }
-              className={cn(
-                "rounded-full border px-4 py-2 text-sm",
-                (cat === c || (c === "Tümü" && cat === "Tümü"))
-                  ? "border-neutral-900 bg-neutral-900 text-neutral-50"
-                  : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400"
-              )}
-            >
-              {c}
-            </Link>
-          ))}
+          {TYPES.map((tt) => {
+            const active = (t === tt) || (tt === "Tümü" && t === "Tümü");
+            const label = tt === "Tümü" ? "Hepsi" : typeLabel(tt);
+
+            const href =
+              tt === "Tümü"
+                ? `/portfoy${cat !== "Tümü" ? `?cat=${encodeURIComponent(cat)}` : ""}${
+                    q
+                      ? `${cat !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(q)}`
+                      : ""
+                  }`
+                : `/portfoy?${cat !== "Tümü" ? `cat=${encodeURIComponent(cat)}&` : ""}t=${encodeURIComponent(tt)}${
+                    q ? `&q=${encodeURIComponent(q)}` : ""
+                  }`;
+
+            return (
+              <Link
+                key={tt}
+                href={href}
+                className={cn(
+                  "rounded-full border px-4 py-2 text-sm",
+                  active
+                    ? "border-neutral-900 bg-neutral-900 text-neutral-50"
+                    : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400"
+                )}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Kategori filtre */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {CATS.map((c) => {
+            const active = (cat === c) || (c === "Tümü" && cat === "Tümü");
+
+            const href =
+              c === "Tümü"
+                ? `/portfoy${t !== "Tümü" ? `?t=${encodeURIComponent(t)}` : ""}${
+                    q
+                      ? `${t !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(q)}`
+                      : ""
+                  }`
+                : `/portfoy?cat=${encodeURIComponent(c)}${
+                    t !== "Tümü" ? `&t=${encodeURIComponent(t)}` : ""
+                  }${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+
+            return (
+              <Link
+                key={c}
+                href={href}
+                className={cn(
+                  "rounded-full border px-4 py-2 text-sm",
+                  active
+                    ? "border-neutral-900 bg-neutral-900 text-neutral-50"
+                    : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400"
+                )}
+              >
+                {c}
+              </Link>
+            );
+          })}
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-10">
         <div className="grid gap-6 md:grid-cols-3">
-          {filtered.map((x) => {
+          {filtered.map((x: any) => {
             const cover = x.coverUrl ?? x.images?.[0];
+            const typeValue = (x.listingType ?? "sale") as "sale" | "rent";
+
             const badgeList = [
               x.isSold ? "Satıldı" : null,
+              typeLabel(typeValue), // ✅ kart üzerinde de gözüksün diye
               ...(x.badges ?? []),
             ].filter(Boolean) as string[];
 
@@ -180,7 +238,7 @@ export default async function PortfolioPage({
 
                 <div className="p-6">
                   <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-                    {x.category}
+                    {x.category} · {typeLabel(typeValue)}
                   </p>
 
                   <h3 className="mt-2 text-lg font-medium tracking-tight">
