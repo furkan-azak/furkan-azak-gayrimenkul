@@ -42,8 +42,7 @@ function normalizeTypeKey(v: unknown): "sale" | "rent" {
   if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
   if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
 
-  // ✅ eski ilanlar default
-  return "sale";
+  return "sale"; // eski ilanlar default
 }
 
 export default async function PortfolioPage({
@@ -221,7 +220,7 @@ export default async function PortfolioPage({
 
             const badgeList = [
               x.isSold ? "Satıldı" : null,
-              typeLabel(typeKey), // ✅ artık kesin görünür
+              typeLabel(typeKey),
               ...(x.badges ?? []),
             ].filter(Boolean) as string[];
 
@@ -256,9 +255,7 @@ export default async function PortfolioPage({
                     {x.category} · {typeLabel(typeKey)}
                   </p>
 
-                  <h3 className="mt-2 text-lg font-medium tracking-tight">
-                    {x.title}
-                  </h3>
+                  <h3 className="mt-2 text-lg font-medium tracking-tight">{x.title}</h3>
 
                   <p className="mt-2 text-sm text-neutral-700">
                     {[x.city, x.district, x.neighborhood].filter(Boolean).join(" · ")}

@@ -4,6 +4,19 @@ import { getListingBySlug } from "@/lib/listings";
 import ListingGallery from "@/components/ListingGallery";
 import ListingMapSection from "@/components/ListingMapSection";
 
+// ✅ Satılık / Kiralık label
+function typeLabel(t: "sale" | "rent") {
+  return t === "sale" ? "Satılık" : "Kiralık";
+}
+
+// ✅ Firestore’dan "Satılık/Kiralık" veya "sale/rent" gelse de tek tipe çevir
+function normalizeTypeKey(v: unknown): "sale" | "rent" {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
+  if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
+  return "sale";
+}
+
 export default async function ListingDetailPage({
   params,
 }: {
@@ -11,37 +24,28 @@ export default async function ListingDetailPage({
 }) {
   const { slug } = await params;
 
-  const listing = await getListingBySlug(slug);
+  const listing: any = await getListingBySlug(slug);
   if (!listing) return notFound();
+
+  const typeKey = normalizeTypeKey(listing.listingType);
 
   const locationText = [listing.city, listing.district, listing.neighborhood]
     .filter(Boolean)
     .join(" · ");
 
   // ✅ resimler (yeni + eski fallback)
-  const images: string[] = (
-    listing.images ??
-    (listing as any).imageUrls ??
-    []
-  ).filter(Boolean);
+  const images: string[] = (listing.images ?? listing.imageUrls ?? []).filter(Boolean);
 
   // ✅ cover: coverUrl varsa onu bas (yoksa images[0])
-  const coverUrl: string | null =
-    (listing as any).coverUrl ?? (images[0] ?? null);
+  const coverUrl: string | null = listing.coverUrl ?? (images[0] ?? null);
 
   // ✅ videolar (yeni + eski fallback)
-  const videos: string[] = (
-    listing.videos ??
-    (listing as any).videoUrls ??
-    []
-  ).filter(Boolean);
+  const videos: string[] = (listing.videos ?? listing.videoUrls ?? []).filter(Boolean);
 
   // ✅ konum (Firestore: location {lat,lng})
-  const rawLoc = (listing as any).location;
+  const rawLoc = listing.location;
   const mapLocation =
-    rawLoc &&
-    typeof rawLoc.lat === "number" &&
-    typeof rawLoc.lng === "number"
+    rawLoc && typeof rawLoc.lat === "number" && typeof rawLoc.lng === "number"
       ? { lat: rawLoc.lat, lng: rawLoc.lng }
       : null;
 
@@ -89,14 +93,16 @@ export default async function ListingDetailPage({
             Portföyler
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-neutral-900">{listing.category}</span>
+          <span className="text-neutral-900">
+            {listing.category} · {typeLabel(typeKey)}
+          </span>
         </div>
 
         {/* Title */}
         <div className="mt-6 grid gap-10 md:grid-cols-12 md:items-start">
           <div className="md:col-span-7">
             <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-              {listing.category}
+              {listing.category} · {typeLabel(typeKey)}
             </p>
 
             <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">
@@ -105,15 +111,20 @@ export default async function ListingDetailPage({
 
             <p className="mt-3 text-sm text-neutral-700">{locationText}</p>
 
-            {/* ✅ SATILDI etiketi */}
-            {listing.isSold && (
-              <div className="mt-4 inline-flex rounded-full bg-red-600 px-4 py-2 text-xs font-medium text-white">
-                Satıldı
-              </div>
-            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {listing.isSold && (
+                <span className="inline-flex rounded-full bg-red-600 px-4 py-2 text-xs font-medium text-white">
+                  Satıldı
+                </span>
+              )}
+
+              <span className="inline-flex rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-800">
+                {typeLabel(typeKey)}
+              </span>
+            </div>
 
             <div className="mt-6 flex flex-wrap gap-2">
-              {(listing.badges ?? []).map((b) => (
+              {(listing.badges ?? []).map((b: string) => (
                 <span
                   key={b}
                   className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700"
@@ -161,6 +172,11 @@ export default async function ListingDetailPage({
                 </div>
               </div>
 
+              <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm">
+                <div className="text-xs text-neutral-600">İlan Tipi</div>
+                <div className="mt-1 font-medium">{typeLabel(typeKey)}</div>
+              </div>
+
               <div className="mt-6 text-xs text-neutral-500">
                 Fiyat ve uygunluk bilgisi için iletişim.
               </div>
@@ -181,7 +197,7 @@ export default async function ListingDetailPage({
           <div className="mt-10">
             <h2 className="text-2xl font-semibold tracking-tight">Video</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              {videos.map((v) => (
+              {videos.map((v: string) => (
                 <div
                   key={v}
                   className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm"
@@ -216,7 +232,7 @@ export default async function ListingDetailPage({
               <h2 className="text-lg font-medium tracking-tight">Temel Özellikler</h2>
 
               <div className="mt-6 grid gap-3">
-                {(listing.features ?? []).map((f) => (
+                {(listing.features ?? []).map((f: any) => (
                   <div
                     key={f.label}
                     className="flex items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm"

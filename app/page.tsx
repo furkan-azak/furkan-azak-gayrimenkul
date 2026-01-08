@@ -4,11 +4,18 @@ import { getListings } from "@/lib/listings";
 
 function Badge({ text }: { text: string }) {
   const sold = text.toLowerCase() === "satıldı";
+  const rent = text.toLowerCase() === "kiralık" || text.toLowerCase() === "kiralik";
+  const sale = text.toLowerCase() === "satılık" || text.toLowerCase() === "satilik";
+
   return (
     <span
       className={
         sold
           ? "rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs text-red-700"
+          : rent
+          ? "rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-700"
+          : sale
+          ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-700"
           : "rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs text-neutral-700"
       }
     >
@@ -20,6 +27,14 @@ function Badge({ text }: { text: string }) {
 // ✅ Satılık / Kiralık label
 function typeLabel(t: "sale" | "rent") {
   return t === "sale" ? "Satılık" : "Kiralık";
+}
+
+// ✅ Firestore’dan "Satılık/Kiralık" veya "sale/rent" gelse de tek tipe çevir
+function normalizeTypeKey(v: unknown): "sale" | "rent" {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
+  if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
+  return "sale"; // eski ilan default
 }
 
 export default async function Home() {
@@ -128,13 +143,11 @@ export default async function Home() {
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {top3.map((x: any) => {
             const cover = x.coverUrl ?? x.images?.[0];
-
-            // ✅ listingType yoksa eski ilanlar için sale varsay
-            const typeValue = (x.listingType ?? "sale") as "sale" | "rent";
+            const typeKey = normalizeTypeKey(x.listingType);
 
             const badgeList = [
               x.isSold ? "Satıldı" : null,
-              typeLabel(typeValue), // ✅ kartta görünsün
+              typeLabel(typeKey),
               ...(x.badges ?? []),
             ].filter(Boolean) as string[];
 
@@ -165,9 +178,8 @@ export default async function Home() {
                 </div>
 
                 <div className="p-6">
-                  {/* ✅ burada da göster */}
                   <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-                    {x.category} · {typeLabel(typeValue)}
+                    {x.category} · {typeLabel(typeKey)}
                   </p>
 
                   <h3 className="mt-2 text-lg font-medium tracking-tight">
@@ -175,9 +187,7 @@ export default async function Home() {
                   </h3>
 
                   <p className="mt-2 text-sm text-neutral-700">
-                    {[x.city, x.district, x.neighborhood]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {[x.city, x.district, x.neighborhood].filter(Boolean).join(" · ")}
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-2">
