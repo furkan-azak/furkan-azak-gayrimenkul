@@ -12,6 +12,8 @@ import { db } from "@/lib/firebaseClient";
 import { unstable_noStore as noStore } from "next/cache";
 
 export type Category = "Villa" | "Daire" | "Arsa";
+export type ListingType = "sale" | "rent";
+
 export type ListingFeature = { label: string; value: string };
 export type LatLng = { lat: number; lng: number };
 
@@ -20,6 +22,10 @@ export type Listing = {
   slug: string;
   title: string;
   category: Category;
+
+  // ✅ yeni
+  listingType: ListingType;
+
   city: string;
   district?: string;
   neighborhood?: string;
@@ -36,7 +42,6 @@ export type Listing = {
   coverUrl?: string | null;
   isSold?: boolean;
 
-  // ✅ yeni: konum
   location?: LatLng | null;
 };
 
@@ -117,6 +122,14 @@ function normalizeCategory(v: unknown): Category {
   return "Daire";
 }
 
+// ✅ Firestore’da "Satılık/Kiralık" veya "sale/rent" gelse de normalize et
+function normalizeListingType(v: unknown): ListingType {
+  const s = asString(v, "").trim().toLowerCase();
+  if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
+  if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
+  return "sale"; // eski ilanlar default
+}
+
 function parseLocation(v: unknown): LatLng | null {
   if (!v || typeof v !== "object") return null;
   const o = v as any;
@@ -144,6 +157,10 @@ function mapDocToListing(id: string, data: Record<string, unknown>): Listing {
     slug,
     title: asString(data.title, "").trim(),
     category: normalizeCategory(data.category),
+
+    // ✅ ekledik
+    listingType: normalizeListingType((data as any).listingType),
+
     city: asString(data.city, "").trim(),
     district: asOptionalString(data.district),
     neighborhood: asOptionalString(data.neighborhood),

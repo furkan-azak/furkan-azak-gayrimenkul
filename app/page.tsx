@@ -17,6 +17,11 @@ function Badge({ text }: { text: string }) {
   );
 }
 
+// ✅ Satılık / Kiralık label
+function typeLabel(t: "sale" | "rent") {
+  return t === "sale" ? "Satılık" : "Kiralık";
+}
+
 export default async function Home() {
   const listings = await getListings();
   const top3 = listings.slice(0, 3);
@@ -61,7 +66,7 @@ export default async function Home() {
         <div className="grid gap-10 md:grid-cols-12 md:items-end">
           <div className="md:col-span-7">
             <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-              Arsa · Villa · Daire
+              Satılık · Kiralık · Arsa · Villa · Daire
             </p>
             <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight md:text-6xl">
               Seçili portföyler,
@@ -121,10 +126,15 @@ export default async function Home() {
         </div>
 
         <div className="mt-10 grid gap-6 md:grid-cols-3">
-          {top3.map((x) => {
+          {top3.map((x: any) => {
             const cover = x.coverUrl ?? x.images?.[0];
+
+            // ✅ listingType yoksa eski ilanlar için sale varsay
+            const typeValue = (x.listingType ?? "sale") as "sale" | "rent";
+
             const badgeList = [
               x.isSold ? "Satıldı" : null,
+              typeLabel(typeValue), // ✅ kartta görünsün
               ...(x.badges ?? []),
             ].filter(Boolean) as string[];
 
@@ -155,8 +165,9 @@ export default async function Home() {
                 </div>
 
                 <div className="p-6">
+                  {/* ✅ burada da göster */}
                   <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-                    {x.category}
+                    {x.category} · {typeLabel(typeValue)}
                   </p>
 
                   <h3 className="mt-2 text-lg font-medium tracking-tight">

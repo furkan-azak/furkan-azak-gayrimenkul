@@ -8,11 +8,18 @@ function cn(...classes: Array<string | false | undefined | null>) {
 
 function Badge({ text }: { text: string }) {
   const sold = text.toLowerCase() === "satıldı";
+  const rent = text.toLowerCase() === "kiralık" || text.toLowerCase() === "kiralik";
+  const sale = text.toLowerCase() === "satılık" || text.toLowerCase() === "satilik";
+
   return (
     <span
       className={
         sold
           ? "rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs text-red-700"
+          : rent
+          ? "rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-700"
+          : sale
+          ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-700"
           : "rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs text-neutral-700"
       }
     >
@@ -28,6 +35,17 @@ function typeLabel(t: "sale" | "rent") {
   return t === "sale" ? "Satılık" : "Kiralık";
 }
 
+// ✅ Firestore’dan "Satılık/Kiralık" veya "sale/rent" gelse de tek tipe çevir
+function normalizeTypeKey(v: unknown): "sale" | "rent" {
+  const s = String(v ?? "").trim().toLowerCase();
+
+  if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
+  if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
+
+  // ✅ eski ilanlar default
+  return "sale";
+}
+
 export default async function PortfolioPage({
   searchParams,
 }: {
@@ -37,12 +55,13 @@ export default async function PortfolioPage({
 
   const cat = (searchParams?.cat ?? "Tümü") as string;
   const q = (searchParams?.q ?? "").trim().toLowerCase();
+
   const tRaw = (searchParams?.t ?? "Tümü") as string;
   const t = (TYPES.includes(tRaw as any) ? tRaw : "Tümü") as "Tümü" | "sale" | "rent";
 
   const filtered = all.filter((x: any) => {
-    const typeValue = (x.listingType ?? "sale") as "sale" | "rent"; // ✅ eski ilanlar için default
-    const typeOk = t === "Tümü" ? true : typeValue === t;
+    const typeKey = normalizeTypeKey(x.listingType);
+    const typeOk = t === "Tümü" ? true : typeKey === t;
 
     const catOk = cat === "Tümü" ? true : x.category === cat;
 
@@ -56,7 +75,7 @@ export default async function PortfolioPage({
         x.category,
         ...(x.badges ?? []),
         x.isSold ? "Satıldı" : "",
-        typeValue === "sale" ? "Satılık" : "Kiralık",
+        typeLabel(typeKey),
       ]
         .filter(Boolean)
         .join(" ")
@@ -133,15 +152,13 @@ export default async function PortfolioPage({
         {/* ✅ Satılık / Kiralık filtre */}
         <div className="mt-6 flex flex-wrap items-center gap-2">
           {TYPES.map((tt) => {
-            const active = (t === tt) || (tt === "Tümü" && t === "Tümü");
+            const active = t === tt;
             const label = tt === "Tümü" ? "Hepsi" : typeLabel(tt);
 
             const href =
               tt === "Tümü"
                 ? `/portfoy${cat !== "Tümü" ? `?cat=${encodeURIComponent(cat)}` : ""}${
-                    q
-                      ? `${cat !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(q)}`
-                      : ""
+                    q ? `${cat !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(q)}` : ""
                   }`
                 : `/portfoy?${cat !== "Tümü" ? `cat=${encodeURIComponent(cat)}&` : ""}t=${encodeURIComponent(tt)}${
                     q ? `&q=${encodeURIComponent(q)}` : ""
@@ -167,14 +184,12 @@ export default async function PortfolioPage({
         {/* Kategori filtre */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {CATS.map((c) => {
-            const active = (cat === c) || (c === "Tümü" && cat === "Tümü");
+            const active = cat === c;
 
             const href =
               c === "Tümü"
                 ? `/portfoy${t !== "Tümü" ? `?t=${encodeURIComponent(t)}` : ""}${
-                    q
-                      ? `${t !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(q)}`
-                      : ""
+                    q ? `${t !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(q)}` : ""
                   }`
                 : `/portfoy?cat=${encodeURIComponent(c)}${
                     t !== "Tümü" ? `&t=${encodeURIComponent(t)}` : ""
@@ -202,11 +217,11 @@ export default async function PortfolioPage({
         <div className="grid gap-6 md:grid-cols-3">
           {filtered.map((x: any) => {
             const cover = x.coverUrl ?? x.images?.[0];
-            const typeValue = (x.listingType ?? "sale") as "sale" | "rent";
+            const typeKey = normalizeTypeKey(x.listingType);
 
             const badgeList = [
               x.isSold ? "Satıldı" : null,
-              typeLabel(typeValue), // ✅ kart üzerinde de gözüksün diye
+              typeLabel(typeKey), // ✅ artık kesin görünür
               ...(x.badges ?? []),
             ].filter(Boolean) as string[];
 
@@ -238,7 +253,7 @@ export default async function PortfolioPage({
 
                 <div className="p-6">
                   <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-                    {x.category} · {typeLabel(typeValue)}
+                    {x.category} · {typeLabel(typeKey)}
                   </p>
 
                   <h3 className="mt-2 text-lg font-medium tracking-tight">
@@ -246,9 +261,7 @@ export default async function PortfolioPage({
                   </h3>
 
                   <p className="mt-2 text-sm text-neutral-700">
-                    {[x.city, x.district, x.neighborhood]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {[x.city, x.district, x.neighborhood].filter(Boolean).join(" · ")}
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-2">
