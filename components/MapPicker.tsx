@@ -1,12 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  useMapEvents,
-} from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 
 type LatLng = { lat: number; lng: number };
@@ -20,14 +15,10 @@ type Props = {
 };
 
 function fixLeafletIconsOnce() {
-  // Next + Leaflet'te marker ikonları bazen görünmez → URL fix
-  // (Tek sefer çalışsın)
-  // @ts-expect-error internal
+  // Next + Leaflet'te marker ikonları bazen görünmez → URL fix (tek sefer çalışsın)
   if ((L as any).__iconFixed) return;
-  // @ts-expect-error internal
   (L as any).__iconFixed = true;
 
-  // @ts-expect-error private
   delete (L.Icon.Default.prototype as any)._getIconUrl;
 
   L.Icon.Default.mergeOptions({
@@ -39,11 +30,7 @@ function fixLeafletIconsOnce() {
   });
 }
 
-function ClickToPick({
-  onPick,
-}: {
-  onPick: (latlng: LatLng) => void;
-}) {
+function ClickToPick({ onPick }: { onPick: (latlng: LatLng) => void }) {
   useMapEvents({
     click(e) {
       onPick({ lat: e.latlng.lat, lng: e.latlng.lng });
@@ -75,7 +62,7 @@ export default function MapPicker({
           style={{ height: "100%", width: "100%" }}
         >
           <TileLayer
-            attribution='&copy; OpenStreetMap'
+            attribution="&copy; OpenStreetMap"
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
