@@ -11,7 +11,7 @@ import {
 import { db } from "@/lib/firebaseClient";
 import { unstable_noStore as noStore } from "next/cache";
 
-export type Category = "Villa" | "Daire" | "Arsa";
+export type Category = "Villa" | "Daire" | "Arsa" | "Dükkan";
 export type ListingType = "sale" | "rent";
 export type ListingFeature = { label: string; value: string };
 export type LatLng = { lat: number; lng: number };
@@ -117,7 +117,7 @@ function parseFeatures(v: unknown): ListingFeature[] | undefined {
 
 function normalizeCategory(v: unknown): Category {
   const s = asString(v, "Daire");
-  if (s === "Villa" || s === "Daire" || s === "Arsa") return s;
+  if (s === "Villa" || s === "Daire" || s === "Arsa" || s === "Dükkan") return s;
   return "Daire";
 }
 

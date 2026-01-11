@@ -19,11 +19,17 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
-import { deleteObject, getDownloadURL, listAll, ref, uploadBytes } from "firebase/storage";
+import {
+  deleteObject,
+  getDownloadURL,
+  listAll,
+  ref,
+  uploadBytes,
+} from "firebase/storage";
 
 const MapPicker = dynamic(() => import("@/components/MapPicker"), { ssr: false });
 
-type Category = "Villa" | "Daire" | "Arsa";
+type Category = "Villa" | "Daire" | "Arsa" | "Dükkan";
 type ListingType = "sale" | "rent";
 type LatLng = { lat: number; lng: number } | null;
 
@@ -53,6 +59,100 @@ function slugifyTR(input: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+/** ✅ file.type bazen boş geliyor (özellikle .jfif) → uzantıdan da image kabul et */
+function isImageFile(file: File) {
+  const name = (file.name || "").toLowerCase();
+  const byExt =
+    name.endsWith(".jpg") ||
+    name.endsWith(".jpeg") ||
+    name.endsWith(".png") ||
+    name.endsWith(".webp") ||
+    name.endsWith(".jfif");
+
+  const byType = (file.type || "").startsWith("image/");
+  return byType || byExt;
+}
+
+/** ✅ Fotoğrafa tam ortadan watermark (şeffaf PNG) — JFIF dahil */
+async function watermarkImageFile(file: File, watermarkUrl = "/watermark.png") {
+  if (!isImageFile(file)) return file;
+
+  const imgUrl = URL.createObjectURL(file);
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      im.src = imgUrl;
+    });
+
+    const mark = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const im = new Image();
+      im.crossOrigin = "anonymous";
+      im.onload = () => resolve(im);
+      im.onerror = reject;
+      // ✅ cache kır (bazı cihazlarda watermark eski/boş geliyor)
+      im.src = `${watermarkUrl}?v=2`; // /public/watermark.png
+    });
+
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+
+    canvas.width = w;
+    canvas.height = h;
+
+    // Fotoğraf
+    ctx.drawImage(img, 0, 0, w, h);
+
+    // Watermark boyutu: kısa kenarın %25’i
+    const base = Math.min(w, h);
+    const targetW = Math.round(base * 0.25);
+
+    // oran koru
+    const markW = mark.naturalWidth || mark.width || 1;
+    const markH = mark.naturalHeight || mark.height || 1;
+    const targetH = Math.round(targetW * (markH / markW));
+
+    // tam ortala
+    const x = Math.round((w - targetW) / 2);
+    const y = Math.round((h - targetH) / 2);
+
+    // watermark
+    ctx.save();
+    ctx.globalAlpha = 0.30; // görünmüyorsa 0.38 yap
+    ctx.shadowColor = "rgba(0,0,0,0.25)";
+    ctx.shadowBlur = Math.max(2, base * 0.01);
+    ctx.shadowOffsetY = Math.max(1, base * 0.004);
+    ctx.drawImage(mark, x, y, targetW, targetH);
+    ctx.restore();
+
+    // ✅ en stabil çıktı: JPEG (JFIF/JPG için süper uyumlu)
+    const outBlob: Blob = await new Promise((resolve) => {
+      canvas.toBlob((b) => resolve(b ?? file), "image/jpeg", 0.92);
+    });
+
+    // bazı tarayıcılarda toBlob null dönebilir → fallback
+    const finalBlob =
+      outBlob instanceof Blob && outBlob.size > 0
+        ? outBlob
+        : await (await fetch(canvas.toDataURL("image/jpeg", 0.92))).blob();
+
+    const outName =
+      file.name.replace(/\.(png|jpg|jpeg|webp|jfif)$/i, "") + ".jpg";
+
+    return new File([finalBlob], outName, { type: "image/jpeg" });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(imgUrl);
+  }
 }
 
 async function isAdmin(uid: string) {
@@ -125,7 +225,12 @@ function storagePathFromDownloadUrl(url: string): string | null {
 
 function readLocation(data: any): LatLng {
   const loc = data?.location;
-  if (loc && typeof loc === "object" && typeof loc.lat === "number" && typeof loc.lng === "number") {
+  if (
+    loc &&
+    typeof loc === "object" &&
+    typeof loc.lat === "number" &&
+    typeof loc.lng === "number"
+  ) {
     return { lat: loc.lat, lng: loc.lng };
   }
   return null;
@@ -159,9 +264,7 @@ export default function AdminPage() {
   const [rooms, setRooms] = useState("");
   const [badgesText, setBadgesText] = useState("");
 
-  // ✅ Sahibinden tarzı “İlan Bilgileri / Özellikler” metni
   const [featuresText, setFeaturesText] = useState("");
-
   const [description, setDescription] = useState("");
 
   const [isSold, setIsSold] = useState(false);
@@ -238,17 +341,37 @@ export default function AdminPage() {
       .filter(Boolean);
   }, [badgesText]);
 
-  async function uploadFiles(listingId: string, files: FileList | null, kind: "images" | "videos") {
+  async function uploadFiles(
+    listingId: string,
+    files: FileList | null,
+    kind: "images" | "videos"
+  ) {
     if (!files || files.length === 0) return [];
 
     const urls: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      const safeName = `${Date.now()}-${slugifyTR(f.name) || "file"}`;
+
+      // ✅ sadece fotoğraflara watermark
+      const processed = kind === "images" ? await watermarkImageFile(f) : f;
+
+      // ✅ debug (istersen sonra sil)
+      console.log(
+        "UPLOAD:",
+        f.name,
+        f.type || "(type boş)",
+        "=>",
+        processed.name,
+        processed.type,
+        processed.size
+      );
+
+      const safeName = `${Date.now()}-${slugifyTR(processed.name) || "file"}`;
       const path = `listings/${listingId}/${kind}/${safeName}`;
       const storageRef = ref(storage, path);
 
-      await uploadBytes(storageRef, f);
+      await uploadBytes(storageRef, processed);
+
       const url = await getDownloadURL(storageRef);
       urls.push(url);
     }
@@ -269,7 +392,7 @@ export default function AdminPage() {
     setAreaM2("");
     setRooms("");
     setBadgesText("");
-    setFeaturesText(""); // ✅
+    setFeaturesText("");
     setDescription("");
     setIsSold(false);
 
@@ -298,7 +421,6 @@ export default function AdminPage() {
       setTitle(String(data.title ?? ""));
       setSlug(String(data.slug ?? id));
       setCategory((data.category as Category) ?? "Daire");
-
       setListingType(((data.listingType as ListingType) ?? "sale") as ListingType);
 
       setCity(String(data.city ?? "İzmir"));
@@ -311,7 +433,6 @@ export default function AdminPage() {
       setDescription(String(data.description ?? ""));
       setIsSold(Boolean(data.isSold));
 
-      // ✅ features çek (array ya da eski string gelirse)
       if (Array.isArray(data.features)) {
         const lines = data.features
           .map((f: any) => `${String(f?.label ?? "").trim()}: ${String(f?.value ?? "").trim()}`)
@@ -331,9 +452,11 @@ export default function AdminPage() {
       setLocation(readLocation(data));
 
       const imgs =
-        (Array.isArray(data.imageUrls) ? data.imageUrls : null) ?? (Array.isArray(data.images) ? data.images : []);
+        (Array.isArray(data.imageUrls) ? data.imageUrls : null) ??
+        (Array.isArray(data.images) ? data.images : []);
       const vids =
-        (Array.isArray(data.videoUrls) ? data.videoUrls : null) ?? (Array.isArray(data.videos) ? data.videos : []);
+        (Array.isArray(data.videoUrls) ? data.videoUrls : null) ??
+        (Array.isArray(data.videos) ? data.videos : []);
 
       setExistingImageUrls(imgs);
       setExistingVideoUrls(vids);
@@ -472,7 +595,6 @@ export default function AdminPage() {
 
       const finalCover = coverUrl || imageUrls[0] || "";
 
-      // ✅ features parse
       const parsedFeatures = featuresText
         .split("\n")
         .map((line) => line.trim())
@@ -501,7 +623,7 @@ export default function AdminPage() {
         rooms: rooms.trim() || null,
 
         badges,
-        features: parsedFeatures, // ✅
+        features: parsedFeatures,
         description: description.trim() || "",
 
         imageUrls,
@@ -536,7 +658,9 @@ export default function AdminPage() {
   if (checking) {
     return (
       <main className="min-h-screen bg-neutral-50 text-neutral-900">
-        <div className="mx-auto max-w-3xl px-6 py-16 text-sm text-neutral-600">Kontrol ediliyor...</div>
+        <div className="mx-auto max-w-3xl px-6 py-16 text-sm text-neutral-600">
+          Kontrol ediliyor...
+        </div>
       </main>
     );
   }
@@ -551,7 +675,10 @@ export default function AdminPage() {
           </Link>
 
           <div className="flex items-center gap-3">
-            <Link href="/portfoy" className="rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm hover:border-neutral-400">
+            <Link
+              href="/portfoy"
+              className="rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm hover:border-neutral-400"
+            >
               Siteyi Gör
             </Link>
 
@@ -581,8 +708,12 @@ export default function AdminPage() {
             <div className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">{editId ? "İlan Düzenle" : "İlan Ekle"}</h1>
-                  <p className="mt-2 text-sm text-neutral-600">Foto/video yükle → URL üretir → Firestore’a kaydeder.</p>
+                  <h1 className="text-2xl font-semibold tracking-tight">
+                    {editId ? "İlan Düzenle" : "İlan Ekle"}
+                  </h1>
+                  <p className="mt-2 text-sm text-neutral-600">
+                    Foto/video yükle → URL üretir → Firestore’a kaydeder. (Fotoğraflara otomatik logo basılır)
+                  </p>
                 </div>
 
                 {editId && (
@@ -616,7 +747,9 @@ export default function AdminPage() {
                       onChange={(e) => setSlug(slugifyTR(e.target.value))}
                       disabled={!!editId}
                     />
-                    <div className="mt-1 text-xs text-neutral-500">URL: /portfoy/{slug || "ilan-slug"}</div>
+                    <div className="mt-1 text-xs text-neutral-500">
+                      URL: /portfoy/{slug || "ilan-slug"}
+                    </div>
                   </div>
 
                   <div>
@@ -629,6 +762,7 @@ export default function AdminPage() {
                       <option value="Villa">Villa</option>
                       <option value="Daire">Daire</option>
                       <option value="Arsa">Arsa</option>
+                      <option value="Dükkan">Dükkan</option>
                     </select>
                   </div>
                 </div>
@@ -644,7 +778,9 @@ export default function AdminPage() {
                     <option value="sale">Satılık</option>
                     <option value="rent">Kiralık</option>
                   </select>
-                  <div className="mt-1 text-xs text-neutral-500">Portföyde filtre buradan çalışacak.</div>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    Portföyde filtre buradan çalışacak.
+                  </div>
                 </div>
 
                 {/* SATILDI */}
@@ -666,7 +802,9 @@ export default function AdminPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-medium">Konum</div>
-                      <div className="mt-1 text-xs text-neutral-600">Haritaya tıkla → pin koy.</div>
+                      <div className="mt-1 text-xs text-neutral-600">
+                        Haritaya tıkla → pin koy.
+                      </div>
                     </div>
 
                     {location && (
@@ -677,7 +815,12 @@ export default function AdminPage() {
                   </div>
 
                   <div className="mt-4">
-                    <MapPicker value={location} onChange={setLocation} defaultCenter={{ lat: 38.4237, lng: 27.1428 }} zoom={12} />
+                    <MapPicker
+                      value={location}
+                      onChange={setLocation}
+                      defaultCenter={{ lat: 38.4237, lng: 27.1428 }}
+                      zoom={12}
+                    />
                   </div>
                 </div>
 
@@ -687,9 +830,13 @@ export default function AdminPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-sm font-medium">Mevcut Fotoğraflar</div>
-                        <div className="mt-1 text-xs text-neutral-600">Kapak seçebilir, tek tek silebilirsin.</div>
+                        <div className="mt-1 text-xs text-neutral-600">
+                          Kapak seçebilir, tek tek silebilirsin.
+                        </div>
                       </div>
-                      <div className="text-xs text-neutral-600">{existingImageUrls.length} foto</div>
+                      <div className="text-xs text-neutral-600">
+                        {existingImageUrls.length} foto
+                      </div>
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -698,9 +845,16 @@ export default function AdminPage() {
                         const busy = busyMediaUrl === u;
 
                         return (
-                          <div key={u} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+                          <div
+                            key={u}
+                            className="overflow-hidden rounded-2xl border border-neutral-200 bg-white"
+                          >
                             <div className="relative aspect-[4/3] bg-neutral-100">
-                              <img src={u} alt="foto" className="h-full w-full object-cover" />
+                              <img
+                                src={u}
+                                alt="foto"
+                                className="h-full w-full object-cover"
+                              />
 
                               {isCover && (
                                 <div className="absolute left-2 top-2 rounded-full bg-black/70 px-3 py-1 text-xs text-white">
@@ -815,44 +969,13 @@ export default function AdminPage() {
                   />
                 </div>
 
-                {/* ✅ İlan Bilgileri / Özellikler */}
                 <div>
                   <label className="text-sm text-neutral-700">İlan Bilgileri / Özellikler</label>
-                  <div className="mt-1 text-xs text-neutral-500">
-                    Her satır: <b>Başlık: Değer</b> (ör: <i>Isıtma: Kombi</i>)
-                  </div>
-
                   <textarea
                     className="mt-2 w-full rounded-2xl border border-neutral-300 px-4 py-3 text-sm outline-none focus:border-neutral-400"
                     value={featuresText}
                     onChange={(e) => setFeaturesText(e.target.value)}
                     rows={10}
-                    placeholder={[
-                      "İlan No: 1290711739",
-                      "İlan Tarihi: 24.12.2025",
-                      "Emlak Tipi: Satılık Daire",
-                      "m² (Brüt): 130",
-                      "m² (Net): 120",
-                      "Oda Sayısı: 2+1",
-                      "Bina Yaşı: 5",
-                      "Bulunduğu Kat: 1",
-                      "Kat Sayısı: 4",
-                      "Isıtma: Kombi (Doğalgaz)",
-                      "Banyo Sayısı: 2",
-                      "Mutfak: Açık (Amerikan)",
-                      "Balkon: Var",
-                      "Asansör: Var",
-                      "Otopark: Kapalı Otopark",
-                      "Eşyalı: Evet",
-                      "Kullanım Durumu: Kiracılı",
-                      "Site İçerisinde: Hayır",
-                      "Aidat (TL): 200",
-                      "Krediye Uygun: Evet",
-                      "Tapu Durumu: Kat Mülkiyetli",
-                      "Kimden: Emlak Ofisinden",
-                      "Takas: Evet",
-                      "Cephe: Kuzey",
-                    ].join("\n")}
                   />
                 </div>
 
@@ -917,7 +1040,9 @@ export default function AdminPage() {
             <div className="rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">Mevcut İlanlar</div>
+                  <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">
+                    Mevcut İlanlar
+                  </div>
                   <div className="mt-1 text-sm text-neutral-700">{rows.length} ilan</div>
                 </div>
 
@@ -946,7 +1071,9 @@ export default function AdminPage() {
                       </div>
 
                       {r.isSold && (
-                        <div className="rounded-full bg-red-600 px-3 py-1 text-xs text-white">Satıldı</div>
+                        <div className="rounded-full bg-red-600 px-3 py-1 text-xs text-white">
+                          Satıldı
+                        </div>
                       )}
                     </div>
 

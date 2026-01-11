@@ -29,7 +29,7 @@ function Badge({ text }: { text: string }) {
   );
 }
 
-const CATS: Array<Category | "Tümü"> = ["Tümü", "Villa", "Daire", "Arsa"];
+const CATS: Array<Category | "Tümü"> = ["Tümü", "Villa", "Daire", "Arsa", "Dükkan"];
 const TYPES: Array<"Tümü" | "sale" | "rent"> = ["Tümü", "sale", "rent"];
 
 function typeLabel(t: "sale" | "rent") {
@@ -215,12 +215,12 @@ export default async function Home({
         </div>
       </section>
 
-      {/* ✅ Hero (sağdaki büyük kutu kaldırıldı) */}
+      {/* ✅ Hero */}
       <section className="mx-auto max-w-6xl px-6 pt-10">
         <div className="grid gap-10 md:grid-cols-12 md:items-end">
           <div className="md:col-span-8">
             <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-              Satılık · Kiralık · Arsa · Villa · Daire
+              Satılık · Kiralık · Arsa · Villa · Daire · Dükkan
             </p>
             <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight md:text-6xl">
               Seçili portföyler,
@@ -247,7 +247,7 @@ export default async function Home({
           </div>
         </div>
 
-        {/* ✅ Foto kartı: alta alındı + küçültüldü */}
+        {/* ✅ Foto kartı */}
         <div className="mt-10 flex justify-center md:justify-end">
           <div className="w-full max-w-md overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
             <div className="relative aspect-[4/3] w-full bg-neutral-100">

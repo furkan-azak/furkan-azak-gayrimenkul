@@ -91,14 +91,12 @@ export default async function ListingDetailPage({
 
         {/* Title */}
         <div className="mt-6 grid gap-10 md:grid-cols-12 md:items-start">
-          <div className="md:col-span-7">
+          <div className="md:col-span-12">
             <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
               {listing.category} · {typeLabel(typeKey)}
             </p>
 
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">
-              {listing.title}
-            </h1>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">{listing.title}</h1>
 
             <p className="mt-3 text-sm text-neutral-700">{locationText}</p>
 
@@ -141,43 +139,17 @@ export default async function ListingDetailPage({
             </div>
           </div>
 
-          <div className="md:col-span-5">
-            <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-              <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">Özet</div>
-              <div className="mt-3 text-2xl font-semibold tracking-tight">{listing.priceText}</div>
-
-              <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                  <div className="text-xs text-neutral-600">m²</div>
-                  <div className="mt-1 font-medium">{listing.areaM2 ?? "—"}</div>
-                </div>
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                  <div className="text-xs text-neutral-600">Oda</div>
-                  <div className="mt-1 font-medium">{listing.rooms ?? "—"}</div>
-                </div>
-              </div>
-
-              <div className="mt-6 text-xs text-neutral-500">Fiyat ve uygunluk bilgisi için iletişim.</div>
-            </div>
-          </div>
+          {/* ✅ ÖZET KARTI SİLİNDİ */}
         </div>
 
-        <ListingGallery
-          title={listing.title}
-          images={images}
-          coverUrl={coverUrl}
-          isSold={!!listing.isSold}
-        />
+        <ListingGallery title={listing.title} images={images} coverUrl={coverUrl} isSold={!!listing.isSold} />
 
         {videos.length > 0 && (
           <div className="mt-10">
             <h2 className="text-2xl font-semibold tracking-tight">Video</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               {videos.map((v) => (
-                <div
-                  key={v}
-                  className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm"
-                >
+                <div key={v} className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
                   <video src={v} controls playsInline className="h-full w-full" />
                 </div>
               ))}
@@ -228,9 +200,7 @@ export default async function ListingDetailPage({
                 </Link>
               </div>
 
-              <div className="mt-6 text-xs text-neutral-500">
-                Detaylar ve güncel durum için iletişime geçebilirsin.
-              </div>
+              <div className="mt-6 text-xs text-neutral-500">Detaylar ve güncel durum için iletişime geçebilirsin.</div>
             </div>
           </aside>
         </div>

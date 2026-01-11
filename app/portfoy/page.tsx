@@ -28,7 +28,7 @@ function Badge({ text }: { text: string }) {
   );
 }
 
-const CATS: Array<Category | "Tümü"> = ["Tümü", "Villa", "Daire", "Arsa"];
+const CATS: Array<Category | "Tümü"> = ["Tümü", "Villa", "Daire", "Arsa", "Dükkan"];
 const TYPES: Array<"Tümü" | "sale" | "rent"> = ["Tümü", "sale", "rent"];
 
 function typeLabel(t: "sale" | "rent") {
@@ -125,7 +125,7 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
-              Satılık · Kiralık · Arsa · Villa · Daire
+              Satılık · Kiralık · Arsa · Villa · Daire · Dükkan
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">Portföyler</h1>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-700">
@@ -133,9 +133,7 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
             </p>
           </div>
 
-          <div className="text-sm text-neutral-600">
-            <span className="text-neutral-900">{filtered.length}</span> sonuç
-          </div>
+          {/* ✅ ÖZET (sonuç sayısı) buradan kaldırıldı */}
         </div>
 
         <form className="mt-8" action="/portfoy">
@@ -152,7 +150,7 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
         {/* ✅ Filtreler: isolate + yüksek z-index + scroll={false} (yukarı atmayı keser) */}
         <div className="relative isolate z-30 mt-6 flex flex-wrap items-center gap-2">
           {TYPES.map((tt) => {
-            const active = (t === tt) || (tt === "Tümü" && t === "Tümü");
+            const active = t === tt || (tt === "Tümü" && t === "Tümü");
             const label = tt === "Tümü" ? "Hepsi" : typeLabel(tt);
 
             const href =
@@ -185,16 +183,16 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
 
         <div className="relative isolate z-30 mt-3 flex flex-wrap items-center gap-2">
           {CATS.map((c) => {
-            const active = (cat === c) || (c === "Tümü" && cat === "Tümü");
+            const active = cat === c || (c === "Tümü" && cat === "Tümü");
 
             const href =
               c === "Tümü"
                 ? `/portfoy${t !== "Tümü" ? `?t=${encodeURIComponent(t)}` : ""}${
                     qInput ? `${t !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(qInput)}` : ""
                   }`
-                : `/portfoy?cat=${encodeURIComponent(c)}${
-                    t !== "Tümü" ? `&t=${encodeURIComponent(t)}` : ""
-                  }${qInput ? `&q=${encodeURIComponent(qInput)}` : ""}`;
+                : `/portfoy?cat=${encodeURIComponent(c)}${t !== "Tümü" ? `&t=${encodeURIComponent(t)}` : ""}${
+                    qInput ? `&q=${encodeURIComponent(qInput)}` : ""
+                  }`;
 
             return (
               <Link
@@ -222,11 +220,9 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
             const cover = x.coverUrl ?? x.images?.[0];
             const typeKey = normalizeTypeKey(x.listingType);
 
-            const badgeList = [
-              x.isSold ? "Satıldı" : null,
-              typeLabel(typeKey),
-              ...(x.badges ?? []),
-            ].filter(Boolean) as string[];
+            const badgeList = [x.isSold ? "Satıldı" : null, typeLabel(typeKey), ...(x.badges ?? [])].filter(
+              Boolean
+            ) as string[];
 
             return (
               <Link
@@ -286,6 +282,11 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
             Bu filtreye uygun portföy bulunamadı.
           </div>
         )}
+
+        {/* ✅ ÖZET en aşağıya alındı */}
+        <div className="mt-10 text-center text-sm text-neutral-600">
+          <span className="text-neutral-900">{filtered.length}</span> sonuç
+        </div>
       </section>
     </main>
   );
