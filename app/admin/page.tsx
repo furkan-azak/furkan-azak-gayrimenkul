@@ -126,7 +126,7 @@ async function watermarkImageFile(file: File, watermarkUrl = "/watermark.png") {
 
     // watermark
     ctx.save();
-    ctx.globalAlpha = 0.30; // görünmüyorsa 0.38 yap
+    ctx.globalAlpha = 0.40; // görünmüyorsa 0.38 yap
     ctx.shadowColor = "rgba(0,0,0,0.25)";
     ctx.shadowBlur = Math.max(2, base * 0.01);
     ctx.shadowOffsetY = Math.max(1, base * 0.004);
