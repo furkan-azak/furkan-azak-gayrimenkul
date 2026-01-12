@@ -126,7 +126,7 @@ async function watermarkImageFile(file: File, watermarkUrl = "/watermark.png") {
 
     // watermark
     ctx.save();
-    ctx.globalAlpha = 0.40; // görünmüyorsa 0.38 yap
+    ctx.globalAlpha = 0.40; // 👈 opaklık burası (0.55 daha net olur)
     ctx.shadowColor = "rgba(0,0,0,0.25)";
     ctx.shadowBlur = Math.max(2, base * 0.01);
     ctx.shadowOffsetY = Math.max(1, base * 0.004);
@@ -542,6 +542,46 @@ export default function AdminPage() {
     }
   }
 
+  // ✅ YENİ: Video silme
+  async function deleteOneVideo(url: string) {
+    if (!editId) return;
+
+    const yes = window.confirm("Bu videoyu silmek istiyor musun? (Storage'dan da silinir)");
+    if (!yes) return;
+
+    setBusyMediaUrl(url);
+    setErr(null);
+    setMsg(null);
+
+    try {
+      const path = storagePathFromDownloadUrl(url);
+      if (!path) throw new Error("Storage path bulunamadı (downloadURL parse edilemedi).");
+
+      await deleteObject(ref(storage, path));
+
+      const nextVideos = existingVideoUrls.filter((x) => x !== url);
+      setExistingVideoUrls(nextVideos);
+
+      // ✅ eski dokümanlarda "videos" alanı da olabiliyor → ikisini de güncelle
+      await setDoc(
+        doc(db, "listings", editId),
+        {
+          videoUrls: nextVideos,
+          videos: nextVideos,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      setMsg("✅ Video silindi.");
+      await refreshList();
+    } catch (e: any) {
+      setErr(e?.message ?? "Video silme hatası.");
+    } finally {
+      setBusyMediaUrl(null);
+    }
+  }
+
   async function makeCover(url: string) {
     if (!editId) return;
 
@@ -895,6 +935,71 @@ export default function AdminPage() {
                       {existingImageUrls.length === 0 && (
                         <div className="col-span-2 rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700 sm:col-span-3">
                           Henüz foto yok.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ✅ Mevcut Videolar */}
+                {editId && (
+                  <div className="rounded-3xl border border-neutral-200 bg-neutral-50 p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium">Mevcut Videolar</div>
+                        <div className="mt-1 text-xs text-neutral-600">
+                          Videoları tek tek silebilirsin.
+                        </div>
+                      </div>
+                      <div className="text-xs text-neutral-600">
+                        {existingVideoUrls.length} video
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {existingVideoUrls.map((v) => {
+                        const busy = busyMediaUrl === v;
+
+                        return (
+                          <div
+                            key={v}
+                            className="overflow-hidden rounded-2xl border border-neutral-200 bg-white"
+                          >
+                            <div className="relative aspect-video bg-neutral-100">
+                              <video
+                                src={v}
+                                controls
+                                playsInline
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 p-3">
+                              <button
+                                type="button"
+                                onClick={() => deleteOneVideo(v)}
+                                disabled={busy}
+                                className="rounded-full border border-red-200 bg-white px-3 py-1 text-xs text-red-700 hover:border-red-300 disabled:opacity-60"
+                              >
+                                Sil
+                              </button>
+
+                              <a
+                                href={v}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs hover:border-neutral-400"
+                              >
+                                Aç
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {existingVideoUrls.length === 0 && (
+                        <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700 sm:col-span-2">
+                          Henüz video yok.
                         </div>
                       )}
                     </div>
