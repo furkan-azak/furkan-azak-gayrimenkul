@@ -1,6 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getListings, type Category } from "@/lib/listings";
-import ListingCardCarousel from "@/components/ListingCardCarousel";
 
 function cn(...classes: Array<string | false | undefined | null>) {
   return classes.filter(Boolean).join(" ");
@@ -42,6 +42,14 @@ function normalizeTypeKey(v: unknown): "sale" | "rent" {
   if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
   if (s === "sale" || s === "satılık" || s === "satilik") return "sale";
   return "sale";
+}
+
+function getListingImages(x: any): string[] {
+  const arr =
+    (Array.isArray(x.images) ? x.images : null) ??
+    (Array.isArray(x.imageUrls) ? x.imageUrls : null) ??
+    [];
+  return (arr as any[]).filter(Boolean).map(String);
 }
 
 type SP =
@@ -136,7 +144,6 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
             "p-8 md:p-10"
           )}
         >
-          {/* subtle background */}
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-neutral-50 to-white" />
 
           <div className="relative">
@@ -145,12 +152,9 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
                 <p className="text-xs uppercase tracking-[0.28em] text-neutral-600">
                   Satılık · Kiralık · Arsa · Villa · Daire · Dükkan
                 </p>
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">
-                  Portföyler
-                </h1>
+                <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-5xl">Portföyler</h1>
                 <p className="mt-3 max-w-2xl text-sm leading-relaxed text-neutral-700">
-                  Seçili ilanlar; net bilgi, sade sunum, hızlı iletişim. Swipe ile görselleri gez,
-                  tek tıkla ilana gir.
+                  Seçili ilanlar; net bilgi, sade sunum, hızlı iletişim. Kartın tamamına dokun → direkt ilana gir.
                 </p>
               </div>
 
@@ -195,13 +199,12 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
               {t !== "Tümü" && <input type="hidden" name="t" value={t} />}
             </form>
 
-            {/* ✅ Sticky Premium Filter Bar */}
+            {/* FILTER BAR */}
             <div className="mt-7 rounded-2xl border border-neutral-200 bg-white/70 p-4 backdrop-blur">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="text-sm font-medium text-neutral-900">Filtreler</div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* type chips */}
                   {TYPES.map((tt) => {
                     const active = t === tt || (tt === "Tümü" && t === "Tümü");
                     const label = tt === "Tümü" ? "Hepsi" : typeLabel(tt);
@@ -236,7 +239,6 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                {/* cat chips */}
                 {CATS.map((c) => {
                   const active = cat === c || (c === "Tümü" && cat === "Tümü");
 
@@ -268,7 +270,6 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
                 })}
               </div>
 
-              {/* Active filters mini summary */}
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-neutral-600">
                 <span className="rounded-full border border-neutral-200 bg-white px-3 py-1">
                   Tip: <span className="text-neutral-900">{t === "Tümü" ? "Hepsi" : typeLabel(t)}</span>
@@ -295,19 +296,14 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
         </div>
       </section>
 
-      {/* GRID */}
+      {/* GRID (NO SLIDER — CARD FULL LINK) */}
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-10">
         <div className="grid gap-6 md:grid-cols-3">
           {filtered.map((x: any) => {
             const typeKey = normalizeTypeKey(x.listingType);
 
-            const images: string[] = [
-              ...(x.images ?? []),
-              ...((x as any).imageUrls ?? []),
-            ].filter(Boolean);
-
-            const cover = (x as any).coverUrl ?? images[0] ?? null;
-            const carouselImages = cover ? [cover, ...images.filter((u) => u !== cover)] : images;
+            const images = getListingImages(x);
+            const cover = ((x as any).coverUrl ?? images[0] ?? null) as string | null;
 
             const badgeList = [
               x.isSold ? "Satıldı" : null,
@@ -315,27 +311,63 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
               ...(x.badges ?? []),
             ].filter(Boolean) as string[];
 
+            const href = `/portfoy/${x.slug}`;
+
             return (
-              <article
+              <Link
                 key={x.id}
+                href={href}
+                aria-label={`${x.title} ilanına git`}
                 className={cn(
-                  "group overflow-hidden rounded-[28px] border border-neutral-200 bg-white shadow-sm",
+                  "group block overflow-hidden rounded-[28px] border border-neutral-200 bg-white shadow-sm",
                   "transition hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow"
                 )}
               >
-                {/* ✅ Swipe carousel + İlanı Gör */}
-                <div className="relative">
-                  <ListingCardCarousel
-                    href={`/portfoy/${x.slug}`}
-                    title={x.title}
-                    isSold={!!x.isSold}
-                    images={carouselImages}
-                  />
+                {/* Media (single cover) */}
+                <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100">
+                  {/* Apple-like ring + glow */}
+                  <div className="pointer-events-none absolute inset-0 z-10 ring-1 ring-neutral-200/70 transition duration-300 group-hover:ring-neutral-300/80" />
+                  <div className="pointer-events-none absolute -inset-10 z-10 opacity-0 blur-2xl transition duration-500 group-hover:opacity-100">
+                    <div className="h-full w-full bg-gradient-to-r from-neutral-200/35 via-white/10 to-neutral-200/35" />
+                  </div>
 
-                  {/* Glass bottom fade */}
+                  {/* Sold */}
+                  {x.isSold && (
+                    <div className="absolute left-3 top-3 z-20 rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white shadow-sm">
+                      Satıldı
+                    </div>
+                  )}
+
+                  {/* Premium "İlanı Gör" (decorative) */}
+                  <div className="pointer-events-none absolute right-3 top-3 z-20">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur">
+                      İlanı Gör <span className="opacity-80">→</span>
+                    </div>
+                  </div>
+
+                  {cover ? (
+                    <>
+                      <Image
+                        src={cover}
+                        alt={x.title}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
+                        className="object-cover transition duration-500 group-hover:scale-[1.02]"
+                      />
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
+                      <div className="pointer-events-none absolute inset-0 opacity-0 transition duration-500 group-hover:opacity-100">
+                        <div className="h-full w-full bg-gradient-to-br from-white/10 via-transparent to-black/10" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-full w-full bg-neutral-100" />
+                  )}
+
+                  {/* subtle bottom fade */}
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/10 to-transparent" />
                 </div>
 
+                {/* Info */}
                 <div className="p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -343,15 +375,9 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
                         {x.category} · {typeLabel(typeKey)}
                       </p>
 
-                      <Link
-                        href={`/portfoy/${x.slug}`}
-                        className={cn(
-                          "mt-2 block text-lg font-medium tracking-tight",
-                          "hover:underline"
-                        )}
-                      >
+                      <div className="mt-2 text-lg font-medium tracking-tight">
                         {x.title}
-                      </Link>
+                      </div>
 
                       <p className="mt-2 text-sm text-neutral-700">
                         {[x.city, x.district, x.neighborhood].filter(Boolean).join(" · ")}
@@ -370,25 +396,17 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
                   </div>
 
                   <div className="mt-6 flex items-center justify-between gap-3">
-                    <Link
-                      href={`/portfoy/${x.slug}`}
-                      className={cn(
-                        "inline-flex items-center justify-center rounded-full px-4 py-2 text-sm",
-                        "border border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400"
-                      )}
-                    >
+                    {/* decorative premium pill */}
+                    <div className="pointer-events-none inline-flex items-center justify-center rounded-full px-4 py-2 text-sm border border-neutral-300 bg-white text-neutral-900">
                       İlanı Gör
-                    </Link>
+                    </div>
 
-                   <Link
-  href={`/portfoy/${x.slug}`}
-  className="text-sm text-neutral-500 hover:text-neutral-900"
->
-  Detay →
-</Link>
+                    <div className="pointer-events-none text-sm text-neutral-500 group-hover:text-neutral-900">
+                      Detay →
+                    </div>
                   </div>
                 </div>
-              </article>
+              </Link>
             );
           })}
         </div>
