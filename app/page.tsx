@@ -7,6 +7,9 @@ function cn(...classes: Array<string | false | undefined | null>) {
   return classes.filter(Boolean).join(" ");
 }
 
+const NO_SCROLLBAR =
+  "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
 function Badge({ text }: { text: string }) {
   const sold = text.toLowerCase() === "satıldı";
   const rent = text.toLowerCase() === "kiralık" || text.toLowerCase() === "kiralik";
@@ -36,7 +39,6 @@ function typeLabel(t: "sale" | "rent") {
   return t === "sale" ? "Satılık" : "Kiralık";
 }
 
-// Firestore’dan "Satılık/Kiralık" veya "sale/rent" gelse de normalize et
 function normalizeTypeKey(v: unknown): "sale" | "rent" {
   const s = String(v ?? "").trim().toLowerCase();
   if (s === "rent" || s === "kiralık" || s === "kiralik") return "rent";
@@ -44,10 +46,17 @@ function normalizeTypeKey(v: unknown): "sale" | "rent" {
   return "sale";
 }
 
+function getListingImages(x: any): string[] {
+  const arr =
+    (Array.isArray(x.images) ? x.images : null) ??
+    (Array.isArray(x.imageUrls) ? x.imageUrls : null) ??
+    [];
+  return (arr as any[]).filter(Boolean).map(String);
+}
+
 export default async function Home({
   searchParams,
 }: {
-  // ✅ Next 15: bazen Promise geliyor → await edeceğiz
   searchParams?:
     | Record<string, string | string[] | undefined>
     | Promise<Record<string, string | string[] | undefined>>;
@@ -61,12 +70,11 @@ export default async function Home({
   const tRaw = (getOne(sp.t) ?? "Tümü").trim();
   const t = (TYPES.includes(tRaw as any) ? tRaw : "Tümü") as "Tümü" | "sale" | "rent";
 
-  const qInput = (getOne(sp.q) ?? "").trim(); // inputta görünen
-  const q = qInput.toLowerCase(); // filtrede kullanılan
+  const qInput = (getOne(sp.q) ?? "").trim();
+  const q = qInput.toLowerCase();
 
   const all = await getListings();
 
-  // ✅ filtrele
   const filtered = all.filter((x: any) => {
     const typeKey = normalizeTypeKey(x.listingType);
     const typeOk = t === "Tümü" ? true : typeKey === t;
@@ -99,7 +107,7 @@ export default async function Home({
   return (
     <main className="min-h-screen bg-neutral-50 text-neutral-900">
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-neutral-200/70 bg-neutral-50/80 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-neutral-200/70 bg-neutral-50/75 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="tracking-tight">
             <div className="text-sm uppercase tracking-[0.22em] text-neutral-600">Furkan Azak</div>
@@ -129,106 +137,121 @@ export default async function Home({
         </div>
       </header>
 
-      {/* ✅ EN ÜST: Arama + filtre barı */}
+      {/* EN ÜST: Arama + filtre barı */}
       <section className="mx-auto max-w-6xl px-6 pt-10">
-        <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="text-sm font-medium">Hızlı Ara / Filtrele</div>
-              <div className="mt-1 text-xs text-neutral-600">
-                Satılık-kiralık + kategori seç, arama yap.
+        <div className="overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+          <div className="p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-sm font-medium">Hızlı Ara / Filtrele</div>
+                <div className="mt-1 text-xs text-neutral-600">
+                  Satılık-kiralık + kategori seç, arama yap.
+                </div>
+              </div>
+
+              <div className="text-sm text-neutral-600">
+                <span className="text-neutral-900">{filtered.length}</span> sonuç
               </div>
             </div>
 
-            <div className="text-sm text-neutral-600">
-              <span className="text-neutral-900">{filtered.length}</span> sonuç
+            <HomeSearchForm initialQ={qInput} />
+
+            {/* Type filtre */}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {TYPES.map((tt) => {
+                const active = t === tt;
+                const label = tt === "Tümü" ? "Hepsi" : typeLabel(tt);
+
+                const href =
+                  tt === "Tümü"
+                    ? `/${cat !== "Tümü" ? `?cat=${encodeURIComponent(cat)}` : ""}${
+                        qInput ? `${cat !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(qInput)}` : ""
+                      }`
+                    : `/?${cat !== "Tümü" ? `cat=${encodeURIComponent(cat)}&` : ""}t=${encodeURIComponent(
+                        tt
+                      )}${qInput ? `&q=${encodeURIComponent(qInput)}` : ""}`;
+
+                return (
+                  <Link
+                    key={tt}
+                    href={href}
+                    scroll={false}
+                    className={cn(
+                      "rounded-full border px-4 py-2 text-sm transition",
+                      active
+                        ? "border-neutral-900 bg-neutral-900 text-neutral-50"
+                        : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400"
+                    )}
+                  >
+                    {label}
+                  </Link>
+                );
+              })}
             </div>
-          </div>
 
-          {/* ✅ SSR hydration sorunu yaşamamak için client form */}
-          <HomeSearchForm initialQ={qInput} />
+            {/* Category filtre */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {CATS.map((c) => {
+                const active = cat === c;
 
-          {/* Type filtre */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            {TYPES.map((tt) => {
-              const active = t === tt;
-              const label = tt === "Tümü" ? "Hepsi" : typeLabel(tt);
+                const href =
+                  c === "Tümü"
+                    ? `/${t !== "Tümü" ? `?t=${encodeURIComponent(t)}` : ""}${
+                        qInput ? `${t !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(qInput)}` : ""
+                      }`
+                    : `/?cat=${encodeURIComponent(c)}${
+                        t !== "Tümü" ? `&t=${encodeURIComponent(t)}` : ""
+                      }${qInput ? `&q=${encodeURIComponent(qInput)}` : ""}`;
 
-              const href =
-                tt === "Tümü"
-                  ? `/${cat !== "Tümü" ? `?cat=${encodeURIComponent(cat)}` : ""}${
-                      qInput ? `${cat !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(qInput)}` : ""
-                    }`
-                  : `/?${cat !== "Tümü" ? `cat=${encodeURIComponent(cat)}&` : ""}t=${encodeURIComponent(
-                      tt
-                    )}${qInput ? `&q=${encodeURIComponent(qInput)}` : ""}`;
-
-              return (
-                <Link
-                  key={tt}
-                  href={href}
-                  scroll={false}
-                  className={cn(
-                    "rounded-full border px-4 py-2 text-sm",
-                    active
-                      ? "border-neutral-900 bg-neutral-900 text-neutral-50"
-                      : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400"
-                  )}
-                >
-                  {label}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Category filtre */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {CATS.map((c) => {
-              const active = cat === c;
-
-              const href =
-                c === "Tümü"
-                  ? `/${t !== "Tümü" ? `?t=${encodeURIComponent(t)}` : ""}${
-                      qInput ? `${t !== "Tümü" ? "&" : "?"}q=${encodeURIComponent(qInput)}` : ""
-                    }`
-                  : `/?cat=${encodeURIComponent(c)}${
-                      t !== "Tümü" ? `&t=${encodeURIComponent(t)}` : ""
-                    }${qInput ? `&q=${encodeURIComponent(qInput)}` : ""}`;
-
-              return (
-                <Link
-                  key={c}
-                  href={href}
-                  scroll={false}
-                  className={cn(
-                    "rounded-full border px-4 py-2 text-sm",
-                    active
-                      ? "border-neutral-900 bg-neutral-900 text-neutral-50"
-                      : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400"
-                  )}
-                >
-                  {c}
-                </Link>
-              );
-            })}
+                return (
+                  <Link
+                    key={c}
+                    href={href}
+                    scroll={false}
+                    className={cn(
+                      "rounded-full border px-4 py-2 text-sm transition",
+                      active
+                        ? "border-neutral-900 bg-neutral-900 text-neutral-50"
+                        : "border-neutral-300 bg-white text-neutral-900 hover:border-neutral-400"
+                    )}
+                  >
+                    {c}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ✅ Hero */}
+      {/* Hero */}
       <section className="mx-auto max-w-6xl px-6 pt-10">
         <div className="grid gap-10 md:grid-cols-12 md:items-end">
           <div className="md:col-span-8">
             <p className="text-xs uppercase tracking-[0.22em] text-neutral-600">
               Satılık · Kiralık · Arsa · Villa · Daire · Dükkan
             </p>
+
             <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight md:text-6xl">
               Seçili portföyler,
-              <span className="text-neutral-500"> sakin bir dil.</span>
+              <span className="text-neutral-500"> premium sunum.</span>
             </h1>
+
             <p className="mt-5 max-w-xl text-base leading-relaxed text-neutral-700">
-              Satılık / kiralık filtrele, ara ve hızlıca ilana git.
+              Filtrele, ara, görselleri kaydır. “İlanı Gör →” ile direkt detaya geç.
             </p>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              <span className="rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-700">
+                {filtered.length} sonuç
+              </span>
+              <span className="rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-700">
+                Hızlı WhatsApp iletişim
+              </span>
+              <span className="rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs text-neutral-700">
+                Kaydırmalı galeri
+              </span>
+            </div>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -247,29 +270,55 @@ export default async function Home({
           </div>
         </div>
 
-        {/* ✅ Foto kartı */}
+        {/* Kaydırmalı Kart: Furkan + Belge */}
         <div className="mt-10 flex justify-center md:justify-end">
           <div className="w-full max-w-md overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
             <div className="relative aspect-[4/3] w-full bg-neutral-100">
-              <Image
-                src="/furkan.jpg"
-                alt="Furkan Azak"
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, 420px"
-                priority
-              />
+              <div
+                className={cn(
+                  "absolute inset-0 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth",
+                  NO_SCROLLBAR
+                )}
+              >
+                <div className="relative h-full w-full flex-shrink-0 snap-center">
+                  <Image
+                    src="/furkan.jpg"
+                    alt="Furkan Azak"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 420px"
+                    priority
+                  />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
+                </div>
+
+                <div className="relative h-full w-full flex-shrink-0 snap-center bg-white">
+                  <Image
+                    src="/belge.jpg"
+                    alt="Mesleki Yeterlilik Belgesi"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 768px) 100vw, 420px"
+                  />
+                </div>
+              </div>
+
+              {/* Kaydır (tiny) */}
+              <div className="pointer-events-none absolute bottom-3 right-3 rounded-full border border-white/25 bg-black/45 px-2 py-0.5 text-[10px] text-white backdrop-blur">
+                Kaydır
+              </div>
             </div>
 
             <div className="p-5">
               <div className="text-xs uppercase tracking-[0.22em] text-neutral-600">Furkan Azak</div>
               <div className="mt-1 text-sm text-neutral-700">“Az ama iyi. Seçili portföy sunumu.”</div>
+              <div className="mt-2 text-xs text-neutral-500">Mesleki Yeterlilik Belgesi görseli mevcut.</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ✅ Liste: 9 ilan */}
+      {/* Liste: 9 ilan */}
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-10">
         <div className="flex items-end justify-between gap-6">
           <div>
@@ -289,8 +338,10 @@ export default async function Home({
 
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {top9.map((x: any) => {
-            const cover = x.coverUrl ?? x.images?.[0];
             const typeKey = normalizeTypeKey(x.listingType);
+            const images = getListingImages(x);
+            const cover = (x.coverUrl ?? images?.[0] ?? null) as string | null;
+            const slides = [cover, ...images.filter((u) => u !== cover)].filter(Boolean) as string[];
 
             const badgeList = [
               x.isSold ? "Satıldı" : null,
@@ -298,27 +349,77 @@ export default async function Home({
               ...(x.badges ?? []),
             ].filter(Boolean) as string[];
 
+            const href = `/portfoy/${x.slug}`;
+
             return (
-              <Link
+              <div
                 key={x.id}
-                href={`/portfoy/${x.slug}`}
-                className="group overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm transition hover:border-neutral-300"
+                className="group overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-md"
               >
+                {/* Apple-like glow + blur + micro zoom */}
                 <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100">
+                  <div className="pointer-events-none absolute inset-0 z-10 ring-1 ring-neutral-200/70 transition duration-300 group-hover:ring-neutral-300/80" />
+                  <div className="pointer-events-none absolute -inset-10 z-10 opacity-0 blur-2xl transition duration-500 group-hover:opacity-100">
+                    <div className="h-full w-full bg-gradient-to-r from-neutral-200/35 via-white/10 to-neutral-200/35" />
+                  </div>
+
                   {x.isSold && (
-                    <div className="absolute left-3 top-3 z-10 rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white">
+                    <div className="absolute left-3 top-3 z-20 rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white shadow-sm">
                       Satıldı
                     </div>
                   )}
 
-                  {cover ? (
-                    <Image
-                      src={cover}
-                      alt={x.title}
-                      fill
-                      className="object-cover transition duration-300 group-hover:scale-[1.02]"
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                    />
+                  <Link
+                    href={href}
+                    className="absolute right-3 top-3 z-20 rounded-full bg-white/95 px-3 py-1 text-xs font-medium text-neutral-900 shadow-sm ring-1 ring-neutral-200 hover:bg-white"
+                  >
+                    İlanı Gör →
+                  </Link>
+
+                  {slides.length > 0 ? (
+                    <>
+                      {/* ✅ scrollbar tamamen gizli + overflow-y kapalı */}
+                      <div
+                        className={cn(
+                          "absolute inset-0 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth",
+                          NO_SCROLLBAR
+                        )}
+                      >
+                        {slides.slice(0, 10).map((u, i) => (
+                          <div key={`${u}-${i}`} className="relative h-full w-full flex-shrink-0 snap-center">
+                            <Image
+                              src={u}
+                              alt={x.title}
+                              fill
+                              className="object-cover transition duration-500 group-hover:scale-[1.02]"
+                              sizes="(max-width: 768px) 100vw, 33vw"
+                            />
+                            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
+                            <div className="pointer-events-none absolute inset-0 opacity-0 transition duration-500 group-hover:opacity-100">
+                              <div className="h-full w-full bg-gradient-to-br from-white/10 via-transparent to-black/10" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Kaydır (tiny) */}
+                      {slides.length > 1 && (
+                        <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-full border border-white/25 bg-black/40 px-2 py-0.5 text-[10px] text-white backdrop-blur">
+                          Kaydır
+                        </div>
+                      )}
+
+                      {slides.length > 1 && (
+                        <div className="pointer-events-none absolute bottom-3 right-3 z-20 flex items-center gap-1 rounded-full border border-white/20 bg-black/30 px-3 py-2 backdrop-blur">
+                          {slides.slice(0, 6).map((_, i) => (
+                            <span key={i} className="h-1.5 w-1.5 rounded-full bg-white/70" />
+                          ))}
+                          {slides.length > 6 && (
+                            <span className="ml-1 text-[10px] text-white/80">+{slides.length - 6}</span>
+                          )}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="h-full w-full bg-neutral-100" />
                   )}
@@ -329,7 +430,11 @@ export default async function Home({
                     {x.category} · {typeLabel(typeKey)}
                   </p>
 
-                  <h3 className="mt-2 text-lg font-medium tracking-tight">{x.title}</h3>
+                  <h3 className="mt-2 text-lg font-medium tracking-tight">
+                    <Link href={href} className="hover:underline">
+                      {x.title}
+                    </Link>
+                  </h3>
 
                   <p className="mt-2 text-sm text-neutral-700">
                     {[x.city, x.district, x.neighborhood].filter(Boolean).join(" · ")}
@@ -343,10 +448,12 @@ export default async function Home({
 
                   <div className="mt-5 flex items-center justify-between">
                     <span className="text-sm text-neutral-900">{x.priceText}</span>
-                    <span className="text-sm text-neutral-500 group-hover:text-neutral-900">Detay →</span>
+                    <Link href={href} className="text-sm text-neutral-500 hover:text-neutral-900">
+                      Detay →
+                    </Link>
                   </div>
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>
