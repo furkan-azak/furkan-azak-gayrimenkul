@@ -380,9 +380,12 @@ export default async function PortfolioPage({ searchParams }: { searchParams?: S
                       İlanı Gör
                     </Link>
 
-                    <div className="text-sm text-neutral-500 group-hover:text-neutral-900">
-                      Detay →
-                    </div>
+                   <Link
+  href={`/portfoy/${x.slug}`}
+  className="text-sm text-neutral-500 hover:text-neutral-900"
+>
+  Detay →
+</Link>
                   </div>
                 </div>
               </article>
