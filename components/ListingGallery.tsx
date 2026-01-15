@@ -14,6 +14,57 @@ function cn(...classes: Array<string | false | undefined | null>) {
   return classes.filter(Boolean).join(" ");
 }
 
+/**
+ * ✅ ÖNEMLİ:
+ * - Vercel Image Optimization limiti (402) yememek için thumbnail'larda Next/Image kullanmıyoruz.
+ * - Thumb'lar <img loading="lazy"> ile gelir.
+ * - Sayfa thumb: max 12
+ * - Modal thumb rail: sadece idx çevresinde pencere (default 17 adet)
+ */
+const PAGE_THUMBS_MAX = 12;
+const MODAL_THUMB_WINDOW = 17; // tek sayıda iyi (idx ortada)
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(n, max));
+}
+
+function rangeWindow(total: number, center: number, size: number) {
+  if (total <= size) return { start: 0, end: total - 1 };
+  const half = Math.floor(size / 2);
+  let start = center - half;
+  let end = center + half;
+  if (start < 0) {
+    start = 0;
+    end = size - 1;
+  }
+  if (end > total - 1) {
+    end = total - 1;
+    start = total - size;
+  }
+  return { start, end };
+}
+
+function ThumbImg({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+    />
+  );
+}
+
 export default function ListingGallery({ title, images, coverUrl, isSold }: Props) {
   const ordered = useMemo(() => {
     const imgs = (images ?? []).filter(Boolean);
@@ -35,7 +86,7 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
 
   function openAt(i: number) {
     if (!total) return;
-    setIdx(Math.max(0, Math.min(i, total - 1)));
+    setIdx(clamp(i, 0, total - 1));
     setOpen(true);
   }
 
@@ -120,6 +171,9 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
   const side1 = ordered[1];
   const side2 = ordered[2];
 
+  const pageThumbs = ordered.slice(0, Math.min(ordered.length, PAGE_THUMBS_MAX));
+  const remaining = ordered.length - pageThumbs.length;
+
   return (
     <>
       {/* GRID (sayfadaki normal galeri) */}
@@ -152,6 +206,7 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
             </div>
           </div>
 
+          {/* Büyük görselde Next/Image kalsın (1 tane) */}
           <Image
             src={cover}
             alt={title}
@@ -159,6 +214,8 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
             className="object-cover transition duration-500 group-hover:scale-[1.03]"
             sizes="(max-width: 768px) 100vw, 66vw"
             priority
+            // ✅ istersen tamamen limiti sıfırlamak için true yap:
+            // unoptimized
           />
         </button>
 
@@ -180,6 +237,7 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
                 fill
                 className="object-cover transition duration-500 group-hover:scale-[1.03]"
                 sizes="(max-width: 768px) 100vw, 33vw"
+                // unoptimized
               />
             ) : null}
           </button>
@@ -201,16 +259,17 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
                 fill
                 className="object-cover transition duration-500 group-hover:scale-[1.03]"
                 sizes="(max-width: 768px) 100vw, 33vw"
+                // unoptimized
               />
             ) : null}
           </button>
         </div>
       </div>
 
-      {/* THUMBNAILS (sayfa altı) */}
+      {/* THUMBNAILS (sayfa altı) - ✅ max 12 + <img lazy> */}
       {ordered.length > 3 && (
         <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
-          {ordered.map((u, i) => (
+          {pageThumbs.map((u, i) => (
             <button
               key={`${u}-${i}`}
               type="button"
@@ -221,10 +280,27 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
               )}
               title={`Foto ${i + 1}`}
             >
-              <Image src={u} alt={title} fill className="object-cover" sizes="112px" />
+              <ThumbImg src={u} alt={title} className="h-full w-full object-cover" />
               <div className="pointer-events-none absolute inset-0 ring-1 ring-black/5" />
             </button>
           ))}
+
+          {/* +X more */}
+          {remaining > 0 && (
+            <button
+              type="button"
+              onClick={() => openAt(0)}
+              className={cn(
+                "relative h-20 w-28 flex-none overflow-hidden rounded-2xl border",
+                "border-neutral-200 bg-black/70 text-white hover:bg-black/75"
+              )}
+              title="Tüm fotoğrafları aç"
+            >
+              <div className="flex h-full w-full items-center justify-center text-sm font-medium">
+                +{remaining}
+              </div>
+            </button>
+          )}
         </div>
       )}
 
@@ -256,11 +332,10 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
             }
           }}
         >
-          {/* soft gradients */}
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/55" />
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,.10),transparent_45%)]" />
 
-          {/* TOP BAR (glass) */}
+          {/* TOP BAR */}
           <div className="absolute left-4 right-4 top-4 z-[700]">
             <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white shadow-[0_24px_80px_rgba(0,0,0,.30)] backdrop-blur-xl">
               <div className="min-w-0">
@@ -302,7 +377,7 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
             </div>
           </div>
 
-          {/* ARROWS (premium) */}
+          {/* ARROWS */}
           {total > 1 && (
             <>
               <button
@@ -327,6 +402,7 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
           {/* IMAGE STAGE */}
           <div className="absolute inset-0 flex items-center justify-center p-5 md:p-10">
             <div className="relative h-[78vh] w-[94vw] max-w-7xl">
+              {/* Sadece current render -> zaten en hızlısı */}
               <Image
                 src={current}
                 alt={title}
@@ -334,43 +410,84 @@ export default function ListingGallery({ title, images, coverUrl, isSold }: Prop
                 className="object-contain"
                 sizes="94vw"
                 priority
+                // unoptimized
               />
             </div>
           </div>
 
-          {/* BOTTOM BAR (thumb rail - Apple vibe) */}
+          {/* BOTTOM BAR (thumb rail) - ✅ pencere + <img lazy> */}
           <div className="absolute bottom-4 left-4 right-4 z-[700]">
             <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-3 shadow-[0_26px_90px_rgba(0,0,0,.35)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[12px] text-white/80">
                   Fotoğraflar — kaydır veya ok tuşlarını kullan
                 </div>
-                <div className="text-[12px] text-white/70">{idx + 1}/{total}</div>
+                <div className="text-[12px] text-white/70">
+                  {idx + 1}/{total}
+                </div>
               </div>
 
-              <div
-                ref={thumbsRef}
-                className="mt-3 flex gap-2 overflow-x-auto pb-1"
-              >
-                {ordered.map((u, i) => (
-                  <button
-                    key={`${u}-${i}`}
-                    data-i={i}
-                    type="button"
-                    onClick={() => setIdx(i)}
-                    className={cn(
-                      "relative h-14 w-20 flex-none overflow-hidden rounded-xl border transition",
-                      i === idx
-                        ? "border-white/60 ring-2 ring-white/35"
-                        : "border-white/15 hover:border-white/30"
+              {(() => {
+                const { start, end } = rangeWindow(total, idx, MODAL_THUMB_WINDOW);
+                const slice = ordered.slice(start, end + 1);
+
+                return (
+                  <div ref={thumbsRef} className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                    {start > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setIdx(0)}
+                          className="relative h-14 w-20 flex-none overflow-hidden rounded-xl border border-white/15 bg-white/10 text-white/90 hover:bg-white/15"
+                          title="Başa git"
+                        >
+                          <div className="flex h-full w-full items-center justify-center text-xs">1</div>
+                        </button>
+                        <div className="flex h-14 items-center px-1 text-white/60">…</div>
+                      </>
                     )}
-                    title={`Foto ${i + 1}`}
-                  >
-                    <Image src={u} alt={title} fill className="object-cover" sizes="80px" />
-                    <div className="pointer-events-none absolute inset-0 ring-1 ring-black/10" />
-                  </button>
-                ))}
-              </div>
+
+                    {slice.map((u, i) => {
+                      const realIndex = start + i;
+                      const active = realIndex === idx;
+                      return (
+                        <button
+                          key={`${u}-${realIndex}`}
+                          data-i={realIndex}
+                          type="button"
+                          onClick={() => setIdx(realIndex)}
+                          className={cn(
+                            "relative h-14 w-20 flex-none overflow-hidden rounded-xl border transition",
+                            active
+                              ? "border-white/60 ring-2 ring-white/35"
+                              : "border-white/15 hover:border-white/30"
+                          )}
+                          title={`Foto ${realIndex + 1}`}
+                        >
+                          <ThumbImg src={u} alt={title} className="h-full w-full object-cover" />
+                          <div className="pointer-events-none absolute inset-0 ring-1 ring-black/10" />
+                        </button>
+                      );
+                    })}
+
+                    {end < total - 1 && (
+                      <>
+                        <div className="flex h-14 items-center px-1 text-white/60">…</div>
+                        <button
+                          type="button"
+                          onClick={() => setIdx(total - 1)}
+                          className="relative h-14 w-20 flex-none overflow-hidden rounded-xl border border-white/15 bg-white/10 text-white/90 hover:bg-white/15"
+                          title="Sona git"
+                        >
+                          <div className="flex h-full w-full items-center justify-center text-xs">
+                            {total}
+                          </div>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
